@@ -18,6 +18,11 @@ router.get('/', (req, res) => {
   });
 });
 
+// Health check for Railway
+router.get('/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
 // Protected routes
 router.use('/folders', authMiddleware, folderRoutes);
 router.use('/lectures', authMiddleware, lectureRoutes);
