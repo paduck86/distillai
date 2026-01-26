@@ -20,8 +20,8 @@ It should be very engaging to read; don't make it sound like boring technical do
 
 # Distillai (디스틸라이) - AI 지식 증류 플랫폼
 
-> **"Pure Knowledge from Noise."**
-> 3시간의 긴 소음(Noise)에서 순수한 지식(Knowledge)만을 증류해내는 AI 지식 베이스.
+> **"Distill the Essence."**
+> 긴 강의에서 핵심만을 증류해내는 AI 지식 베이스.
 
 ---
 

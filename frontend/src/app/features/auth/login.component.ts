@@ -116,10 +116,10 @@ import { ButtonModule } from 'primeng/button';
             <i class="pi pi-bolt text-white text-4xl"></i>
           </div>
           <h2 class="font-display text-3xl font-bold text-white mb-4">
-            Pure Knowledge from Noise
+            Distill the Essence
           </h2>
           <p class="text-zinc-400 max-w-md">
-            3시간의 긴 소음에서 순수한 지식만을 증류해내는
+            긴 강의에서 핵심만을 증류해내는
             AI 지식 베이스
           </p>
         </div>
