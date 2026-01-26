@@ -1,7 +1,7 @@
 import type { Request, Response, NextFunction } from 'express';
 import * as lectureService from '../services/lecture.service.js';
 import * as storageService from '../services/storage.service.js';
-import * as aiService from '../services/openai.service.js';
+import * as aiService from '../services/gemini.service.js';
 import * as categoryService from '../services/category.service.js';
 import * as youtubeService from '../services/youtube.service.js';
 import * as pdfService from '../services/pdf.service.js';

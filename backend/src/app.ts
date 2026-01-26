@@ -40,7 +40,7 @@ app.use(errorHandler);
 const PORT = env.PORT;
 
 app.listen(PORT, () => {
-  console.log(`🚀 Verba API running on port ${PORT}`);
+  console.log(`🚀 Distillai API running on port ${PORT}`);
   console.log(`📝 Environment: ${env.NODE_ENV}`);
 });
 

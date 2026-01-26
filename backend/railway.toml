@@ -1,6 +1,10 @@
 [build]
 builder = "nixpacks"
 
+# Install ffmpeg for audio compression (Whisper 25MB limit workaround)
+[build.nixpacks]
+nixpacksConfigPath = "nixpacks.toml"
+
 [deploy]
 startCommand = "npm run start"
 healthcheckPath = "/api/health"

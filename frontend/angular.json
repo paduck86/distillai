@@ -3,7 +3,7 @@
   "version": 1,
   "newProjectRoot": "projects",
   "projects": {
-    "verba-app": {
+    "distillai": {
       "projectType": "application",
       "schematics": {
         "@schematics/angular:component": {
@@ -39,7 +39,7 @@
         "build": {
           "builder": "@angular-devkit/build-angular:application",
           "options": {
-            "outputPath": "dist/verba-app",
+            "outputPath": "dist/distillai",
             "index": "src/index.html",
             "browser": "src/main.ts",
             "polyfills": [
@@ -92,10 +92,10 @@
           "builder": "@angular-devkit/build-angular:dev-server",
           "configurations": {
             "production": {
-              "buildTarget": "verba-app:build:production"
+              "buildTarget": "distillai:build:production"
             },
             "development": {
-              "buildTarget": "verba-app:build:development"
+              "buildTarget": "distillai:build:development"
             }
           },
           "defaultConfiguration": "development"

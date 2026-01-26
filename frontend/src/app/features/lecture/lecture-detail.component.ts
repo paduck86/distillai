@@ -151,9 +151,12 @@ interface ActionItem {
                 <div class="min-w-0 flex-1">
                   @if (isEditingTitle()) {
                     <input
+                      #titleInput
                       [(ngModel)]="editedTitle"
-                      (blur)="saveTitle()"
+                      (blur)="onTitleBlur($event)"
                       (keydown.enter)="saveTitle()"
+                      (compositionstart)="isComposingTitle = true"
+                      (compositionend)="onTitleCompositionEnd($event)"
                       class="input text-sm font-medium w-full"
                       autofocus />
                   } @else {
@@ -177,8 +180,11 @@ interface ActionItem {
                   (timeupdate)="onTimeUpdate()"
                   (ended)="onAudioEnded()"
                   (loadedmetadata)="onMetadataLoaded()"
+                  (durationchange)="onDurationChange()"
+                  (loadeddata)="onLoadedData()"
                   (loadstart)="onLoadStart()"
-                  preload="metadata">
+                  (error)="onAudioError($event)"
+                  preload="auto">
                 </audio>
 
                 <div class="space-y-2">
@@ -1098,6 +1104,7 @@ export class LectureDetailComponent implements OnInit, OnDestroy {
   summarizing = signal(false);
   isEditingTitle = signal(false);
   editedTitle = '';
+  isComposingTitle = false; // 한글 IME 조합 상태 추적
 
   // Tabs
   activeTab = signal<ReportTab>('detailed');
@@ -1208,6 +1215,11 @@ export class LectureDetailComponent implements OnInit, OnDestroy {
     this.loading.set(true);
     this.api.getLecture(id).subscribe({
       next: (response) => {
+        console.log('📥 Lecture loaded:', {
+          id: response.data.id,
+          audioPath: response.data.audioPath,
+          audioUrl: response.data.audioUrl,
+        });
         this.distillation.set(response.data);
         this.loading.set(false);
         if (this.showAgentPanel()) {
@@ -1941,6 +1953,23 @@ export class LectureDetailComponent implements OnInit, OnDestroy {
   startEditTitle() {
     this.editedTitle = this.distillation()?.title || '';
     this.isEditingTitle.set(true);
+    this.isComposingTitle = false;
+  }
+
+  onTitleCompositionEnd(event: Event) {
+    // IME 조합 완료 시 최신 값으로 업데이트
+    const input = event.target as HTMLInputElement;
+    this.editedTitle = input.value;
+    this.isComposingTitle = false;
+  }
+
+  onTitleBlur(event: Event) {
+    const input = event.target as HTMLInputElement;
+    // setTimeout으로 지연시켜 compositionend가 먼저 실행되도록 함
+    setTimeout(() => {
+      this.editedTitle = input.value;
+      this.saveTitle();
+    }, 0);
   }
 
   saveTitle() {
@@ -1991,12 +2020,13 @@ export class LectureDetailComponent implements OnInit, OnDestroy {
   seekAudio(event: MouseEvent) {
     const audio = this.audioPlayerRef?.nativeElement;
     const progressBar = this.progressBarRef?.nativeElement;
-    if (!audio || !progressBar) return;
+    const duration = this.audioDuration();
+    if (!audio || !progressBar || duration <= 0) return;
 
     const rect = progressBar.getBoundingClientRect();
     const clickX = event.clientX - rect.left;
     const percentage = clickX / rect.width;
-    const newTime = percentage * audio.duration;
+    const newTime = percentage * duration;
 
     if (isFinite(newTime)) {
       audio.currentTime = newTime;
@@ -2007,7 +2037,8 @@ export class LectureDetailComponent implements OnInit, OnDestroy {
 
   seekToTimestamp(timestamp: string) {
     const audio = this.audioPlayerRef?.nativeElement;
-    if (!audio) return;
+    const duration = this.audioDuration();
+    if (!audio || duration <= 0) return;
 
     const parts = timestamp.split(':').map(Number);
     let seconds = 0;
@@ -2017,10 +2048,10 @@ export class LectureDetailComponent implements OnInit, OnDestroy {
       seconds = parts[0] * 60 + parts[1];
     }
 
-    if (isFinite(seconds) && seconds <= audio.duration) {
+    if (isFinite(seconds) && seconds <= duration) {
       audio.currentTime = seconds;
       this.currentTime.set(seconds);
-      this.progress.set((seconds / audio.duration) * 100);
+      this.progress.set((seconds / duration) * 100);
       if (!this.isPlaying()) {
         this.togglePlay();
       }
@@ -2042,10 +2073,11 @@ export class LectureDetailComponent implements OnInit, OnDestroy {
 
   onTimeUpdate() {
     const audio = this.audioPlayerRef?.nativeElement;
-    if (!audio || !this.isMetadataLoaded() || !isFinite(audio.duration) || audio.duration <= 0) return;
+    const duration = this.audioDuration();
+    if (!audio || !this.isMetadataLoaded() || duration <= 0) return;
 
     this.currentTime.set(audio.currentTime);
-    const newProgress = (audio.currentTime / audio.duration) * 100;
+    const newProgress = (audio.currentTime / duration) * 100;
     this.progress.set(Math.max(0, Math.min(100, newProgress)));
   }
 
@@ -2063,13 +2095,49 @@ export class LectureDetailComponent implements OnInit, OnDestroy {
   }
 
   onMetadataLoaded() {
+    this.trySetDuration();
+  }
+
+  onDurationChange() {
+    this.trySetDuration();
+  }
+
+  onLoadedData() {
+    this.trySetDuration();
+  }
+
+  private trySetDuration() {
     const audio = this.audioPlayerRef?.nativeElement;
-    if (audio && isFinite(audio.duration) && audio.duration > 0) {
+    if (!audio) return;
+
+    // 브라우저에서 유효한 duration을 얻은 경우
+    if (isFinite(audio.duration) && audio.duration > 0) {
       this.audioDuration.set(audio.duration);
       this.progress.set(0);
       this.currentTime.set(0);
       this.isMetadataLoaded.set(true);
+      return;
     }
+
+    // WebM 파일의 경우 duration이 Infinity일 수 있음
+    // 백엔드에서 저장한 durationSeconds를 fallback으로 사용
+    const fallbackDuration = this.distillation()?.durationSeconds;
+    if (fallbackDuration && fallbackDuration > 0) {
+      this.audioDuration.set(fallbackDuration);
+      this.progress.set(0);
+      this.currentTime.set(0);
+      this.isMetadataLoaded.set(true);
+    }
+  }
+
+  onAudioError(event: Event) {
+    const audio = event.target as HTMLAudioElement;
+    const error = audio.error;
+    console.error('🔴 Audio load error:', {
+      code: error?.code,
+      message: error?.message,
+      src: audio.src,
+    });
   }
 
   ngOnDestroy() {

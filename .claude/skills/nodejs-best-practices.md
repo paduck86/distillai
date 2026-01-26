@@ -34,7 +34,7 @@ What are you building?
     └── Next.js API Routes or tRPC
 ```
 
-### For Verba Project: Express or Fastify
+### For Distillai Project: Express or Fastify
 - Express: More middleware ecosystem, familiar
 - Fastify: Better performance for audio processing
 
@@ -42,7 +42,7 @@ What are you building?
 
 ## 2. Architecture Principles
 
-### Layered Structure for Verba
+### Layered Structure for Distillai
 
 ```
 Request Flow:

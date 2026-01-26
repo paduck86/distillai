@@ -18,14 +18,14 @@ Vercel deployment expert for deploying Angular and Node.js applications.
 
 ---
 
-## Verba Deployment Architecture
+## Distillai Deployment Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                         Vercel                               │
 │  ┌─────────────────────────────────────────────────────┐   │
 │  │              Angular Frontend (SSG/SSR)              │   │
-│  │              https://verba.app                       │   │
+│  │              https://distillai.app                       │   │
 │  └─────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────┘
                               │
@@ -34,7 +34,7 @@ Vercel deployment expert for deploying Angular and Node.js applications.
 │                        Railway                               │
 │  ┌─────────────────────────────────────────────────────┐   │
 │  │              Node.js Backend API                     │   │
-│  │              https://api.verba.app                   │   │
+│  │              https://api.distillai.app                   │   │
 │  └─────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────┘
                               │
@@ -57,7 +57,7 @@ Vercel deployment expert for deploying Angular and Node.js applications.
 # .env.production
 NEXT_PUBLIC_SUPABASE_URL=https://xxx.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJxxx...
-NEXT_PUBLIC_API_URL=https://api.verba.app
+NEXT_PUBLIC_API_URL=https://api.distillai.app
 ```
 
 ### Backend (Railway)
@@ -69,7 +69,7 @@ PORT=3000
 SUPABASE_URL=https://xxx.supabase.co
 SUPABASE_SERVICE_KEY=eyJxxx...
 GEMINI_API_KEY=AIxxx...
-FRONTEND_URL=https://verba.app
+FRONTEND_URL=https://distillai.app
 ```
 
 ### Security Rules
@@ -92,7 +92,7 @@ FRONTEND_URL=https://verba.app
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "buildCommand": "ng build --configuration production",
-  "outputDirectory": "dist/verba/browser",
+  "outputDirectory": "dist/distillai/browser",
   "framework": null,
   "routes": [
     {
@@ -184,7 +184,7 @@ CMD ["node", "dist/app.js"]
 // angular.json
 {
   "projects": {
-    "verba": {
+    "distillai": {
       "architect": {
         "build": {
           "configurations": {
@@ -232,7 +232,7 @@ import cors from 'cors';
 
 const corsOptions = {
   origin: process.env.NODE_ENV === 'production'
-    ? ['https://verba.app', 'https://www.verba.app']
+    ? ['https://distillai.app', 'https://www.distillai.app']
     : ['http://localhost:4200'],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
@@ -249,14 +249,14 @@ app.use(cors(corsOptions));
 ### Vercel Preview
 
 - Automatic on every PR
-- Unique URL: `verba-xxx-team.vercel.app`
+- Unique URL: `distillai-xxx-team.vercel.app`
 - Use for testing before merge
 
 ### Environment Strategy
 
 | Environment | URL | Database |
 |-------------|-----|----------|
-| Production | verba.app | Production DB |
+| Production | distillai.app | Production DB |
 | Preview | *.vercel.app | Staging DB |
 | Development | localhost:4200 | Local/Dev DB |
 

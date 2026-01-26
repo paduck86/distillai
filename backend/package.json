@@ -1,7 +1,7 @@
 {
-  "name": "verba-backend",
+  "name": "distillai-backend",
   "version": "0.0.1",
-  "description": "Verba Backend API",
+  "description": "Distillai Backend API",
   "main": "dist/app.js",
   "type": "module",
   "scripts": {

@@ -33,7 +33,7 @@ type LectureId = Brand<string, 'LectureId'>;
 function getLecture(lectureId: LectureId, userId: UserId) { }
 ```
 
-### Utility Types for Verba
+### Utility Types for Distillai
 
 ```typescript
 // API Response types
@@ -80,7 +80,7 @@ type DeepReadonly<T> = T extends (...args: any[]) => any
 type Nullable<T> = T | null;
 ```
 
-## tsconfig.json for Verba
+## tsconfig.json for Distillai
 
 ### Frontend (Angular)
 

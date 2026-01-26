@@ -1,7 +1,7 @@
 import type { Request, Response, NextFunction } from 'express';
 import * as chatService from '../services/chat.service.js';
 import * as lectureService from '../services/lecture.service.js';
-import * as aiService from '../services/openai.service.js';
+import * as aiService from '../services/gemini.service.js';
 import type { CreateChatMessage } from '../types/index.js';
 
 export async function sendMessage(req: Request, res: Response, next: NextFunction) {

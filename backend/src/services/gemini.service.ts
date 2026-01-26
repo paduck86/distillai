@@ -1,15 +1,87 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleAIFileManager } from '@google/generative-ai/server';
 import { env } from '../config/env.js';
 import { AppError } from '../middleware/error.middleware.js';
 import type { ChatMessage, SummarizeResult, ChatCompletionResult, CategoryExtractionResult } from '../types/index.js';
+import fs from 'fs/promises';
+import os from 'os';
+import path from 'path';
+import crypto from 'crypto';
 
 const genAI = env.GEMINI_API_KEY ? new GoogleGenerativeAI(env.GEMINI_API_KEY) : null;
+const fileManager = env.GEMINI_API_KEY ? new GoogleAIFileManager(env.GEMINI_API_KEY) : null;
 
 const SUMMARIZE_MODEL = 'gemini-1.5-flash';
 const CHAT_MODEL = 'gemini-1.5-flash';
 
+// 20MB 이상이면 File API 사용 (inlineData 제한)
+const INLINE_DATA_LIMIT = 20 * 1024 * 1024;
+
 // 시스템 카테고리 slug 목록
 const SYSTEM_CATEGORIES = ['lecture', 'meeting', 'podcast', 'interview', 'tech', 'other'] as const;
+
+/**
+ * File API를 사용한 대용량 오디오 업로드 (3시간+ 강의 지원)
+ */
+async function uploadLargeAudioFile(
+  audioBuffer: ArrayBuffer,
+  mimeType: string
+): Promise<{ uri: string; name: string }> {
+  if (!fileManager) {
+    throw new AppError(500, 'GEMINI_NOT_CONFIGURED', 'Gemini File Manager is not configured');
+  }
+
+  const tempDir = os.tmpdir();
+  const tempId = crypto.randomBytes(8).toString('hex');
+  const extension = mimeType.includes('webm') ? 'webm' : mimeType.includes('mp3') ? 'mp3' : 'wav';
+  const tempPath = path.join(tempDir, `audio_${tempId}.${extension}`);
+
+  try {
+    // 임시 파일에 저장
+    await fs.writeFile(tempPath, Buffer.from(audioBuffer));
+    console.log(`Saved temp file: ${tempPath} (${(audioBuffer.byteLength / 1024 / 1024).toFixed(2)}MB)`);
+
+    // File API로 업로드
+    console.log('Uploading to Gemini File API...');
+    const uploadResult = await fileManager.uploadFile(tempPath, {
+      mimeType,
+      displayName: `audio_${tempId}`,
+    });
+
+    console.log(`Upload started: ${uploadResult.file.name}, state: ${uploadResult.file.state}`);
+
+    // 파일 처리 완료 대기 (ACTIVE 상태가 될 때까지)
+    let file = uploadResult.file;
+    while (file.state === 'PROCESSING') {
+      console.log('Waiting for file processing...');
+      await new Promise(resolve => setTimeout(resolve, 5000)); // 5초 대기
+      file = await fileManager.getFile(file.name);
+    }
+
+    if (file.state === 'FAILED') {
+      throw new Error('File processing failed');
+    }
+
+    console.log(`File ready: ${file.uri}`);
+    return { uri: file.uri, name: file.name };
+  } finally {
+    // 임시 파일 정리
+    await fs.unlink(tempPath).catch(() => {});
+  }
+}
+
+/**
+ * 업로드된 파일 삭제 (정리용)
+ */
+async function deleteUploadedFile(fileName: string): Promise<void> {
+  if (!fileManager) return;
+  try {
+    await fileManager.deleteFile(fileName);
+    console.log(`Deleted uploaded file: ${fileName}`);
+  } catch (error) {
+    console.warn(`Failed to delete file ${fileName}:`, error);
+  }
+}
 
 export async function summarizeLecture(
   audioUrl: string,
@@ -18,6 +90,9 @@ export async function summarizeLecture(
   if (!genAI) {
     throw new AppError(500, 'GEMINI_NOT_CONFIGURED', 'Gemini API is not configured');
   }
+
+  let uploadedFileName: string | null = null;
+
   try {
     const model = genAI.getGenerativeModel({ model: SUMMARIZE_MODEL });
 
@@ -28,20 +103,12 @@ export async function summarizeLecture(
     }
 
     const audioBuffer = await response.arrayBuffer();
-    const base64Audio = Buffer.from(audioBuffer).toString('base64');
-
-    // Determine mime type from URL or default to webm
     const mimeType = getMimeTypeFromUrl(audioUrl);
+    const fileSizeMB = audioBuffer.byteLength / 1024 / 1024;
 
-    const result = await model.generateContent([
-      {
-        inlineData: {
-          mimeType,
-          data: base64Audio,
-        },
-      },
-      {
-        text: `당신은 전문 속기사이자 강의 요약 전문가입니다.
+    console.log(`Audio file size: ${fileSizeMB.toFixed(2)}MB, MIME: ${mimeType}`);
+
+    const prompt = `당신은 전문 속기사이자 강의 요약 전문가입니다.
 
 이 강의 "${title}"를 듣고 다음 두 가지를 제공해주세요:
 
@@ -84,9 +151,41 @@ SUMMARY:
 [구조화된 요약]
 
 강의가 한국어면 한국어로, 영어면 영어로 응답해주세요.
-타임스탬프는 [HH:MM:SS] 형식으로 표기해주세요.`,
-      },
-    ]);
+타임스탬프는 [HH:MM:SS] 형식으로 표기해주세요.`;
+
+    let result;
+
+    // 파일 크기에 따라 처리 방식 선택
+    if (audioBuffer.byteLength > INLINE_DATA_LIMIT) {
+      // 대용량: File API 사용 (3시간+ 강의 지원)
+      console.log('Using File API for large audio file...');
+      const uploadedFile = await uploadLargeAudioFile(audioBuffer, mimeType);
+      uploadedFileName = uploadedFile.name;
+
+      result = await model.generateContent([
+        {
+          fileData: {
+            mimeType,
+            fileUri: uploadedFile.uri,
+          },
+        },
+        { text: prompt },
+      ]);
+    } else {
+      // 소용량: inlineData 사용 (빠름)
+      console.log('Using inline data for small audio file...');
+      const base64Audio = Buffer.from(audioBuffer).toString('base64');
+
+      result = await model.generateContent([
+        {
+          inlineData: {
+            mimeType,
+            data: base64Audio,
+          },
+        },
+        { text: prompt },
+      ]);
+    }
 
     const text = result.response.text();
 
@@ -105,6 +204,11 @@ SUMMARY:
       'AI_PROCESSING_FAILED',
       `AI 처리 중 오류가 발생했습니다: ${error instanceof Error ? error.message : 'Unknown error'}`
     );
+  } finally {
+    // 업로드된 파일 정리
+    if (uploadedFileName) {
+      await deleteUploadedFile(uploadedFileName);
+    }
   }
 }
 
@@ -288,6 +392,173 @@ export async function summarizeWithCategoryExtraction(
   const result = await summarizeLecture(audioUrl, title);
 
   // 요약 결과로 카테고리 추출
+  const aiCategory = await extractCategoryAndTags(
+    title,
+    result.summary,
+    result.transcript
+  );
+
+  return {
+    ...result,
+    aiCategory,
+  };
+}
+
+/**
+ * 오디오 버퍼를 직접 전사 (YouTube 오디오 다운로드용)
+ * Gemini는 오디오를 직접 처리할 수 있으므로 전사만 반환
+ */
+export async function transcribeAudioBuffer(
+  buffer: Uint8Array,
+  mimeType: string = 'audio/mpeg'
+): Promise<string> {
+  if (!genAI) {
+    throw new AppError(500, 'GEMINI_NOT_CONFIGURED', 'Gemini API is not configured');
+  }
+
+  let uploadedFileName: string | null = null;
+
+  try {
+    const model = genAI.getGenerativeModel({ model: SUMMARIZE_MODEL });
+    // Uint8Array를 ArrayBuffer로 변환
+    const audioBuffer = Buffer.from(buffer).buffer as ArrayBuffer;
+
+    console.log(`Transcribing audio buffer: ${(buffer.length / 1024 / 1024).toFixed(2)}MB`);
+
+    const prompt = `이 오디오를 듣고 내용을 있는 그대로 전사해주세요.
+자연스러운 한국어로 작성하되, 말하는 사람의 의도를 최대한 살려주세요.
+오디오가 영어면 영어로, 한국어면 한국어로 전사해주세요.
+전사 결과만 반환하고, 다른 설명은 추가하지 마세요.`;
+
+    let result;
+
+    if (buffer.length > INLINE_DATA_LIMIT) {
+      // 대용량: File API 사용
+      console.log('Using File API for large audio buffer...');
+      const uploadedFile = await uploadLargeAudioFile(audioBuffer, mimeType);
+      uploadedFileName = uploadedFile.name;
+
+      result = await model.generateContent([
+        {
+          fileData: {
+            mimeType,
+            fileUri: uploadedFile.uri,
+          },
+        },
+        { text: prompt },
+      ]);
+    } else {
+      // 소용량: inlineData 사용
+      console.log('Using inline data for small audio buffer...');
+      const base64Audio = Buffer.from(audioBuffer).toString('base64');
+
+      result = await model.generateContent([
+        {
+          inlineData: {
+            mimeType,
+            data: base64Audio,
+          },
+        },
+        { text: prompt },
+      ]);
+    }
+
+    const transcript = result.response.text().trim();
+    console.log(`Transcription complete. Length: ${transcript.length}`);
+    return transcript;
+  } catch (error) {
+    console.error('Gemini transcription error:', error);
+    throw new AppError(
+      500,
+      'AI_TRANSCRIPTION_FAILED',
+      `AI 전사 중 오류가 발생했습니다: ${error instanceof Error ? error.message : 'Unknown error'}`
+    );
+  } finally {
+    if (uploadedFileName) {
+      await deleteUploadedFile(uploadedFileName);
+    }
+  }
+}
+
+/**
+ * 텍스트 트랜스크립트에서 요약 생성 (YouTube 자막용)
+ */
+export async function summarizeFromTranscript(
+  transcript: string,
+  title: string
+): Promise<SummarizeResult> {
+  if (!genAI) {
+    throw new AppError(500, 'GEMINI_NOT_CONFIGURED', 'Gemini API is not configured');
+  }
+
+  try {
+    const model = genAI.getGenerativeModel({ model: SUMMARIZE_MODEL });
+
+    console.log('Generating summary from transcript with Gemini...');
+    const prompt = `당신은 전문 강의 요약 전문가입니다.
+주어진 강의 전사본을 분석하여 구조화된 상세 요약을 제공해주세요.
+
+다음 형식으로 요약해주세요:
+
+### 개요
+- 강의의 핵심 주제와 목표를 2-3문장으로 요약
+
+### 목차
+[타임스탬프] 섹션 제목의 형식으로 주요 섹션 나열 (타임스탬프는 대략적으로 추정)
+
+### 상세 내용
+각 섹션별로:
+
+#### 섹션 제목
+- **핵심 개념**: 주요 개념 설명
+- **세부 내용**:
+  - 세부 포인트 1
+  - 세부 포인트 2
+- **예시/사례**: 언급된 예시나 사례
+- **중요 인용**: "중요한 발언 그대로 인용"
+
+### 핵심 정리
+- 가장 중요한 takeaway 3-5개 bullet points
+
+### 추가 학습 키워드
+- 더 깊이 공부하면 좋을 관련 키워드
+
+---
+
+강의 제목: "${title}"
+
+강의 전사본:
+${transcript}
+
+위 강의를 분석하고 구조화된 요약을 작성해주세요.`;
+
+    const result = await model.generateContent(prompt);
+    const summary = result.response.text().trim();
+    console.log(`Summary complete. Length: ${summary.length}`);
+
+    return {
+      transcript,
+      summary,
+    };
+  } catch (error) {
+    console.error('Gemini summarization error:', error);
+    throw new AppError(
+      500,
+      'AI_PROCESSING_FAILED',
+      `AI 처리 중 오류가 발생했습니다: ${error instanceof Error ? error.message : 'Unknown error'}`
+    );
+  }
+}
+
+/**
+ * 텍스트 트랜스크립트에서 요약과 카테고리 추출을 함께 수행 (YouTube용)
+ */
+export async function summarizeFromTranscriptWithCategory(
+  transcript: string,
+  title: string
+): Promise<SummarizeResult> {
+  const result = await summarizeFromTranscript(transcript, title);
+
   const aiCategory = await extractCategoryAndTags(
     title,
     result.summary,

@@ -1,6 +1,7 @@
 import OpenAI from 'openai';
 import { env } from '../config/env.js';
 import { AppError } from '../middleware/error.middleware.js';
+import { compressAudioIfNeeded, checkFfmpegAvailable } from '../utils/audio.util.js';
 import type { ChatMessage, SummarizeResult, ChatCompletionResult, CategoryExtractionResult } from '../types/index.js';
 
 const openai = new OpenAI({
@@ -17,12 +18,37 @@ const SYSTEM_CATEGORIES = ['lecture', 'meeting', 'podcast', 'interview', 'tech',
  * 오디오 버퍼를 Whisper로 전사합니다.
  */
 export async function transcribeAudioBuffer(
-  buffer: Buffer,
+  buffer: Uint8Array,
   mimeType: string = 'audio/mpeg'
 ): Promise<string> {
-  const extension = mimeType === 'audio/mpeg' ? 'mp3' : 'webm';
-  const audioBlob = new Blob([buffer], { type: mimeType });
-  const audioFile = new File([audioBlob], `audio.${extension}`, { type: mimeType });
+  let audioData: Uint8Array = buffer;
+  let finalMimeType = mimeType;
+
+  console.log(`Original audio buffer size: ${(buffer.length / 1024 / 1024).toFixed(2)}MB`);
+
+  // Check if compression is needed (Whisper limit: 25MB)
+  if (buffer.length > 24 * 1024 * 1024) {
+    const ffmpegAvailable = await checkFfmpegAvailable();
+    if (ffmpegAvailable) {
+      const compressed = await compressAudioIfNeeded(buffer, mimeType);
+      if (compressed.compressed) {
+        audioData = compressed.buffer;
+        finalMimeType = 'audio/mpeg';
+        console.log(`Compressed to: ${(audioData.length / 1024 / 1024).toFixed(2)}MB`);
+      }
+    } else {
+      console.warn('ffmpeg not available, cannot compress large audio file');
+      throw new AppError(
+        400,
+        'AUDIO_TOO_LARGE',
+        '오디오 파일이 25MB를 초과합니다. 서버에 ffmpeg가 설치되어 있지 않아 압축할 수 없습니다.'
+      );
+    }
+  }
+
+  const extension = finalMimeType === 'audio/mpeg' ? 'mp3' : 'webm';
+  const audioBlob = new Blob([audioData], { type: finalMimeType });
+  const audioFile = new File([audioBlob], `audio.${extension}`, { type: finalMimeType });
 
   console.log('Transcribing audio buffer with Whisper...');
   const transcription = await openai.audio.transcriptions.create({
@@ -49,10 +75,34 @@ export async function summarizeLecture(
     }
 
     const audioBuffer = await response.arrayBuffer();
-    const audioBlob = new Blob([audioBuffer], { type: 'audio/webm' });
+    let audioData: Uint8Array = new Uint8Array(audioBuffer);
+    let mimeType = 'audio/webm';
 
-    // Create a File object for Whisper
-    const audioFile = new File([audioBlob], 'audio.webm', { type: 'audio/webm' });
+    console.log(`Original audio size: ${(audioData.length / 1024 / 1024).toFixed(2)}MB`);
+
+    // Check if compression is needed (Whisper limit: 25MB)
+    if (audioData.length > 24 * 1024 * 1024) {
+      const ffmpegAvailable = await checkFfmpegAvailable();
+      if (ffmpegAvailable) {
+        const compressed = await compressAudioIfNeeded(audioData, mimeType);
+        if (compressed.compressed) {
+          audioData = compressed.buffer;
+          mimeType = 'audio/mpeg';
+          console.log(`Compressed to: ${(audioData.length / 1024 / 1024).toFixed(2)}MB`);
+        }
+      } else {
+        console.warn('ffmpeg not available, cannot compress large audio file');
+        throw new AppError(
+          400,
+          'AUDIO_TOO_LARGE',
+          '오디오 파일이 25MB를 초과합니다. 서버에 ffmpeg가 설치되어 있지 않아 압축할 수 없습니다.'
+        );
+      }
+    }
+
+    const audioBlob = new Blob([audioData], { type: mimeType });
+    const extension = mimeType === 'audio/mpeg' ? 'mp3' : 'webm';
+    const audioFile = new File([audioBlob], `audio.${extension}`, { type: mimeType });
 
     // 2. Transcribe with Whisper
     console.log('Transcribing audio with Whisper...');

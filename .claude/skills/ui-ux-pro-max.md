@@ -81,11 +81,11 @@ Reference these guidelines when:
 
 ---
 
-## Verba Design System
+## Distillai Design System
 
 ### Theme: "Clean & Focus"
 
-Based on the project requirements, Verba should use:
+Based on the project requirements, Distillai should use:
 
 **Style**: Soft Dark Mode (장시간 학습 고려)
 **Pattern**: Dashboard with Split View (Notion-like)
