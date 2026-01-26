@@ -68,7 +68,12 @@ function getExtensionFromMimeType(mimeType: string): string {
     'audio/ogg': 'ogg',
     'audio/m4a': 'm4a',
     'audio/x-m4a': 'm4a',
+    'video/mp4': 'mp4',
+    'video/webm': 'webm',
+    'video/quicktime': 'mov',
+    'video/x-msvideo': 'avi',
+    'application/pdf': 'pdf',
   };
 
-  return mimeToExt[mimeType] ?? 'audio';
+  return mimeToExt[mimeType] ?? 'bin';
 }

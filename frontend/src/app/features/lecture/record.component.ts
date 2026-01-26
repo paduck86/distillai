@@ -5,6 +5,7 @@ import { Title } from '@angular/platform-browser';
 import { RecorderService } from '../../core/services/recorder.service';
 import { ApiService } from '../../core/services/api.service';
 import { ToastService } from '../../core/services/toast.service';
+import { AudioConverterService } from '../../core/services/audio-converter.service';
 import { ButtonModule } from 'primeng/button';
 import { CardModule } from 'primeng/card';
 import { ProgressSpinnerModule } from 'primeng/progressspinner';
@@ -88,7 +89,7 @@ type AudioSource = 'tab' | 'screen' | 'mic';
                       <h3 class="font-semibold text-white mb-1">시스템 오디오</h3>
                       <p class="text-sm text-zinc-400">
                         컴퓨터에서 나오는 모든 소리를 녹음합니다.
-                        화면 공유로 전체 시스템 오디오를 캡처합니다.
+                        화면 선택 후 오디오만 캡처됩니다.
                       </p>
                     </div>
                     @if (selectedSource() === 'screen') {
@@ -313,9 +314,15 @@ type AudioSource = 'tab' | 'screen' | 'mic';
               <div class="flex items-center justify-center gap-4">
                 <button
                   (click)="downloadAudio()"
+                  [disabled]="audioConverter.converting()"
                   class="btn-secondary flex items-center gap-2 px-6 py-3">
-                  <i class="pi pi-download"></i>
-                  <span>다운로드</span>
+                  @if (audioConverter.converting()) {
+                    <i class="pi pi-spin pi-spinner"></i>
+                    <span>MP3 변환 중... {{ audioConverter.progress() }}%</span>
+                  } @else {
+                    <i class="pi pi-download"></i>
+                    <span>MP3 다운로드</span>
+                  }
                 </button>
 
                 <button
@@ -400,6 +407,7 @@ export class RecordComponent implements OnDestroy {
   private api = inject(ApiService);
   private titleService = inject(Title);
   private toast = inject(ToastService);
+  audioConverter = inject(AudioConverterService);
 
   private originalTitle = 'Distillai';
 
@@ -449,8 +457,14 @@ export class RecordComponent implements OnDestroy {
     this.selectedSource.set(source);
   }
 
-  confirmSource() {
-    if (this.selectedSource()) {
+  async confirmSource() {
+    const source = this.selectedSource();
+    if (!source) return;
+
+    // 시스템 오디오 선택 시 바로 녹음 시작
+    if (source === 'screen') {
+      await this.startRecording();
+    } else {
       this.sourceConfirmed.set(true);
     }
   }
@@ -493,18 +507,26 @@ export class RecordComponent implements OnDestroy {
     this.recorder.stopRecording();
   }
 
-  downloadAudio() {
+  async downloadAudio() {
     const blob = this.recorderState().audioBlob;
     if (!blob) return;
 
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `distillai-recording-${new Date().toISOString().slice(0, 10)}.webm`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    try {
+      // WebM을 MP3로 변환
+      const mp3Blob = await this.audioConverter.convertToMp3(blob);
+
+      const url = URL.createObjectURL(mp3Blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `distillai-recording-${new Date().toISOString().slice(0, 10)}.mp3`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('MP3 conversion failed:', error);
+      this.toast.error('변환 실패', 'MP3 변환 중 오류가 발생했습니다');
+    }
   }
 
   async startDistillation() {

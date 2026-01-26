@@ -4,6 +4,7 @@ import * as storageService from '../services/storage.service.js';
 import * as aiService from '../services/openai.service.js';
 import * as categoryService from '../services/category.service.js';
 import * as youtubeService from '../services/youtube.service.js';
+import * as pdfService from '../services/pdf.service.js';
 import type { CreateLecture, UpdateLecture } from '../types/index.js';
 import { ValidationError, AppError } from '../middleware/error.middleware.js';
 
@@ -387,11 +388,44 @@ export async function summarizeLecture(req: Request, res: Response, next: NextFu
           );
         }
       }
+    } else if (lecture.sourceType === 'pdf') {
+      // PDF 파일인 경우: 텍스트 추출 후 요약
+      if (!lecture.audioPath) {
+        throw new ValidationError('No PDF file uploaded');
+      }
+
+      console.log(`Processing PDF file: ${lecture.audioPath}`);
+
+      try {
+        // PDF 파일 다운로드
+        const signedUrl = await storageService.getSignedUrl(lecture.audioPath);
+        const response = await fetch(signedUrl);
+        if (!response.ok) {
+          throw new Error('Failed to fetch PDF file');
+        }
+        const pdfBuffer = Buffer.from(await response.arrayBuffer());
+
+        // PDF에서 텍스트 추출
+        const pdfText = await pdfService.extractTextFromPdf(pdfBuffer);
+        console.log(`PDF text extracted: ${pdfText.length} characters`);
+
+        // 텍스트 기반 요약 수행
+        result = await aiService.summarizeFromTranscriptWithCategory(pdfText, lecture.title);
+      } catch (pdfError) {
+        const errorMessage = pdfError instanceof Error ? pdfError.message : String(pdfError);
+        throw new AppError(
+          500,
+          'PDF_PROCESSING_FAILED',
+          `PDF 처리 실패: ${errorMessage}`
+        );
+      }
     } else {
-      // 일반 오디오 파일인 경우
+      // 일반 오디오/비디오 파일인 경우
       if (!lecture.audioPath) {
         throw new ValidationError('No audio file uploaded');
       }
+
+      console.log(`Processing audio/video file: ${lecture.audioPath}`);
 
       // Get audio URL
       const audioUrl = await storageService.getSignedUrl(lecture.audioPath);

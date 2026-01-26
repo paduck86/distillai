@@ -1,3 +1,22 @@
+# Project Constitution (Must Follow)
+
+## Source of Truth
+
+이 프로젝트에서 Claude는:
+
+- **판단, 설계, 구현 결정 시**
+  - 세션 기억이나 추론에 의존하지 않는다
+  - 항상 이 `CLAUDE.md`와 `.skill/` 폴더를 다시 읽는다
+
+- 이 규칙은 모든 세션, 모든 창, 모든 작업에 적용된다
+- 이 문서의 지침은 사용자 지시 다음으로 우선한다
+
+- For every project, write a detailed FOR JakeJeong.md file that explains the whole project in plain language. 
+
+Explain the technical architecture, the structure of the codebase and how the various parts are connected, the technologies used, why we made these technical decisions, and lessons I can learn from it (this should include the bugs we ran into and how we fixed them, potential pitfalls and how to avoid them in the future, new technologies used, how good engineers think and work, best practices, etc). 
+
+It should be very engaging to read; don't make it sound like boring technical documentation/textbook. Where appropriate, use analogies and anecdotes to make it more understandable and memorable.
+
 # Distillai (디스틸라이) - AI 지식 증류 플랫폼
 
 > **"Pure Knowledge from Noise."**
