@@ -917,11 +917,11 @@ export class DashboardComponent implements OnInit {
 
   private searchSubject = new Subject<string>();
 
-  @ViewChild('audioInput') audioInputRef!: ElementRef<HTMLInputElement>;
-  @ViewChild('videoInput') videoInputRef!: ElementRef<HTMLInputElement>;
-  @ViewChild('fileInput') fileInputRef!: ElementRef<HTMLInputElement>;
-  @ViewChild('pdfInput') pdfInputRef!: ElementRef<HTMLInputElement>;
-  @ViewChild('dialogPdfInput') dialogPdfInputRef!: ElementRef<HTMLInputElement>;
+  @ViewChild('audioInput') audioInputRef?: ElementRef<HTMLInputElement>;
+  @ViewChild('videoInput') videoInputRef?: ElementRef<HTMLInputElement>;
+  @ViewChild('fileInput') fileInputRef?: ElementRef<HTMLInputElement>;
+  @ViewChild('pdfInput') pdfInputRef?: ElementRef<HTMLInputElement>;
+  @ViewChild('dialogPdfInput') dialogPdfInputRef?: ElementRef<HTMLInputElement>;
 
   // Import Tabs
   importTabs = [
