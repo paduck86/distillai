@@ -6,6 +6,7 @@ import folderRoutes from './folder.routes.js';
 import lectureRoutes from './lecture.routes.js';
 import chatRoutes from './chat.routes.js';
 import categoryRoutes from './category.routes.js';
+import blockRoutes from './block.routes.js';
 
 const router = Router();
 
@@ -28,5 +29,6 @@ router.use('/folders', authMiddleware, folderRoutes);
 router.use('/lectures', authMiddleware, lectureRoutes);
 router.use('/chat', authMiddleware, chatRoutes);
 router.use('/categories', authMiddleware, categoryRoutes);
+router.use('/blocks', blockRoutes);  // auth middleware is inside
 
 export { router as routes };

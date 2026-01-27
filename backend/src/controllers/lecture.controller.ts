@@ -7,7 +7,7 @@ import * as categoryService from '../services/category.service.js';
 import * as youtubeService from '../services/youtube.service.js';
 import * as pdfService from '../services/pdf.service.js';
 import * as xService from '../services/x.service.js';
-import type { CreateLecture, UpdateLecture } from '../types/index.js';
+import type { CreateLecture, UpdateLecture, CreatePage, MovePage } from '../types/index.js';
 import { ValidationError, AppError } from '../middleware/error.middleware.js';
 
 export async function getLectures(req: Request, res: Response, next: NextFunction) {
@@ -695,6 +695,115 @@ export async function createFromX(req: Request, res: Response, next: NextFunctio
     });
 
     res.status(201).json({ data: lecture });
+  } catch (error) {
+    next(error);
+  }
+}
+
+// ============================================
+// Page Hierarchy Endpoints
+// ============================================
+
+/**
+ * GET /api/pages/tree
+ * 페이지 트리 조회
+ */
+export async function getPageTree(req: Request, res: Response, next: NextFunction) {
+  try {
+    const userId = req.user!.id;
+    const tree = await lectureService.getPageTree(userId);
+
+    res.json({ data: tree });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * POST /api/pages
+ * 새 페이지 생성
+ */
+export async function createPageHandler(req: Request, res: Response, next: NextFunction) {
+  try {
+    const userId = req.user!.id;
+    const input: CreatePage = req.body;
+    const page = await lectureService.createPage(userId, input);
+
+    res.status(201).json({ data: page });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * PUT /api/pages/:id/move
+ * 페이지 이동
+ */
+export async function movePageHandler(req: Request, res: Response, next: NextFunction) {
+  try {
+    const userId = req.user!.id;
+    const pageId = req.params.id!;
+    const move: MovePage = req.body;
+
+    await lectureService.movePage(userId, pageId, move);
+
+    res.json({ success: true });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * PUT /api/pages/:id/collapse
+ * 페이지 접힘 상태 토글
+ */
+export async function toggleCollapseHandler(req: Request, res: Response, next: NextFunction) {
+  try {
+    const userId = req.user!.id;
+    const pageId = req.params.id!;
+
+    const page = await lectureService.toggleCollapse(userId, pageId);
+
+    res.json({ data: page });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * PUT /api/pages/:id
+ * 페이지 업데이트 (hierarchy 포함)
+ */
+export async function updatePageHandler(req: Request, res: Response, next: NextFunction) {
+  try {
+    const userId = req.user!.id;
+    const pageId = req.params.id!;
+    const updates = req.body;
+
+    const page = await lectureService.updatePageHierarchy(userId, pageId, updates);
+
+    res.json({ data: page });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * POST /api/pages/reorder
+ * 페이지 순서 일괄 업데이트
+ */
+export async function reorderPagesHandler(req: Request, res: Response, next: NextFunction) {
+  try {
+    const userId = req.user!.id;
+    const { pageIds, parentId } = req.body;
+
+    if (!Array.isArray(pageIds)) {
+      throw new ValidationError('pageIds must be an array');
+    }
+
+    await lectureService.reorderPages(userId, pageIds, parentId ?? null);
+
+    res.json({ success: true });
   } catch (error) {
     next(error);
   }

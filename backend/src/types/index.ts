@@ -508,3 +508,234 @@ export function mapChatMessageRow(row: ChatMessageRow): ChatMessage {
     createdAt: row.created_at,
   };
 }
+
+// ============================================
+// Block Types (Notion-style)
+// ============================================
+
+export type BlockType =
+  | 'text'
+  | 'heading1'
+  | 'heading2'
+  | 'heading3'
+  | 'bullet'
+  | 'numbered'
+  | 'todo'
+  | 'toggle'
+  | 'quote'
+  | 'callout'
+  | 'divider'
+  | 'code'
+  | 'timestamp'
+  | 'ai_summary'
+  | 'embed';
+
+export type BlockColor =
+  | 'default'
+  | 'gray'
+  | 'brown'
+  | 'orange'
+  | 'yellow'
+  | 'green'
+  | 'blue'
+  | 'purple'
+  | 'pink'
+  | 'red';
+
+export interface BlockProperties {
+  level?: 1 | 2 | 3;
+  checked?: boolean;
+  collapsed?: boolean;
+  icon?: string;
+  color?: BlockColor;
+  language?: string;
+  timestamp?: string;
+  aiGenerated?: boolean;
+  embedUrl?: string;
+  embedType?: 'youtube' | 'image' | 'link';
+}
+
+export interface Block {
+  id: string;
+  distillationId: string;
+  parentId: string | null;
+  type: BlockType;
+  content: string;
+  properties: BlockProperties;
+  position: number;
+  createdAt: string;
+  updatedAt: string;
+  children?: Block[];
+}
+
+export interface CreateBlock {
+  distillationId: string;
+  parentId?: string;
+  type: BlockType;
+  content: string;
+  properties?: BlockProperties;
+  position?: number;
+}
+
+export interface UpdateBlock {
+  type?: BlockType;
+  content?: string;
+  properties?: BlockProperties;
+  position?: number;
+  parentId?: string | null;
+}
+
+export interface BlockRow {
+  id: string;
+  distillation_id: string;
+  parent_id: string | null;
+  type: string;
+  content: string;
+  properties: BlockProperties;
+  position: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export function mapBlockRow(row: BlockRow): Block {
+  return {
+    id: row.id,
+    distillationId: row.distillation_id,
+    parentId: row.parent_id,
+    type: row.type as BlockType,
+    content: row.content,
+    properties: row.properties ?? {},
+    position: row.position,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+// ============================================
+// Extended Distillation with Blocks
+// ============================================
+
+export interface DistillationWithBlocks extends Distillation {
+  pageIcon?: string;
+  pageCover?: string;
+  blocksMigrated?: boolean;
+  blocks?: Block[];
+}
+
+export interface DistillationRowWithBlocks extends DistillationRow {
+  page_icon?: string;
+  page_cover?: string;
+  blocks_migrated?: boolean;
+}
+
+export function mapDistillationRowWithBlocks(row: DistillationRowWithBlocks): DistillationWithBlocks {
+  return {
+    ...mapDistillationRow(row),
+    pageIcon: row.page_icon ?? undefined,
+    pageCover: row.page_cover ?? undefined,
+    blocksMigrated: row.blocks_migrated ?? false,
+  };
+}
+
+// ============================================
+// Page Hierarchy Types
+// ============================================
+
+export interface PageTreeNode {
+  id: string;
+  parentId: string | null;
+  title: string;
+  pageIcon: string | null;
+  isFolder: boolean;
+  collapsed: boolean;
+  position: number;
+  status: DistillationStatus;
+  sourceType: SourceType;
+  audioUrl: string | null;
+  durationSeconds: number | null;
+  createdAt: string;
+  updatedAt: string;
+  depth: number;
+  children: PageTreeNode[];
+}
+
+export interface PageTreeRow {
+  id: string;
+  parent_id: string | null;
+  title: string;
+  page_icon: string | null;
+  is_folder: boolean;
+  collapsed: boolean;
+  position: number;
+  status: string;
+  source_type: string;
+  audio_url: string | null;
+  duration_seconds: number | null;
+  created_at: string;
+  updated_at: string;
+  depth: number;
+}
+
+export function mapPageTreeRow(row: PageTreeRow): Omit<PageTreeNode, 'children'> {
+  return {
+    id: row.id,
+    parentId: row.parent_id,
+    title: row.title,
+    pageIcon: row.page_icon,
+    isFolder: row.is_folder ?? false,
+    collapsed: row.collapsed ?? false,
+    position: row.position ?? 0,
+    status: row.status as DistillationStatus,
+    sourceType: (row.source_type as SourceType) ?? 'note',
+    audioUrl: row.audio_url,
+    durationSeconds: row.duration_seconds,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    depth: row.depth ?? 0,
+  };
+}
+
+export interface CreatePage {
+  title?: string;
+  parentId?: string;
+  isFolder?: boolean;
+  pageIcon?: string;
+  sourceType?: SourceType;
+}
+
+export interface MovePage {
+  parentId: string | null;
+  position: number;
+}
+
+// Extended Distillation with hierarchy fields
+export interface DistillationWithHierarchy extends Distillation {
+  parentId: string | null;
+  position: number;
+  isFolder: boolean;
+  collapsed: boolean;
+  pageIcon: string | null;
+  pageCover: string | null;
+  children?: DistillationWithHierarchy[];
+}
+
+export interface DistillationRowWithHierarchy extends DistillationRow {
+  parent_id: string | null;
+  position: number;
+  is_folder: boolean;
+  collapsed: boolean;
+  page_icon: string | null;
+  page_cover: string | null;
+}
+
+export function mapDistillationRowWithHierarchy(row: DistillationRowWithHierarchy): DistillationWithHierarchy {
+  return {
+    ...mapDistillationRow(row),
+    parentId: row.parent_id ?? null,
+    position: row.position ?? 0,
+    isFolder: row.is_folder ?? false,
+    collapsed: row.collapsed ?? false,
+    pageIcon: row.page_icon ?? null,
+    pageCover: row.page_cover ?? null,
+  };
+}

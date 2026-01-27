@@ -14,6 +14,15 @@
   --font-body: 'Inter', sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
 
+  // Notion-style typography
+  --notion-font-body: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --notion-font-mono: 'JetBrains Mono', 'SF Mono', monospace;
+
+  // Notion-style spacing
+  --notion-page-padding: 96px;
+  --notion-block-spacing: 4px;
+  --notion-line-height: 1.6;
+
   // Primary colors (same for both themes)
   --color-primary: #4F46E5;
   --color-primary-light: #6366F1;
@@ -27,6 +36,18 @@
   --color-warning: #F59E0B;
   --color-error: #EF4444;
   --color-info: #3B82F6;
+
+  // Notion-style block colors
+  --block-bg-default: transparent;
+  --block-bg-gray: rgba(128, 128, 128, 0.1);
+  --block-bg-brown: rgba(159, 107, 83, 0.1);
+  --block-bg-orange: rgba(255, 163, 68, 0.1);
+  --block-bg-yellow: rgba(255, 220, 73, 0.1);
+  --block-bg-green: rgba(77, 171, 154, 0.1);
+  --block-bg-blue: rgba(82, 156, 202, 0.1);
+  --block-bg-purple: rgba(154, 109, 215, 0.1);
+  --block-bg-pink: rgba(226, 85, 161, 0.1);
+  --block-bg-red: rgba(255, 115, 105, 0.1);
 }
 
 // Dark Mode (default)
@@ -309,5 +330,193 @@ body {
   // Section description border
   .section-description {
     border-color: var(--color-border);
+  }
+}
+
+// ============================================
+// Notion-style Block Styles
+// ============================================
+
+// Block color backgrounds
+.block-color-gray { background-color: var(--block-bg-gray); }
+.block-color-brown { background-color: var(--block-bg-brown); }
+.block-color-orange { background-color: var(--block-bg-orange); }
+.block-color-yellow { background-color: var(--block-bg-yellow); }
+.block-color-green { background-color: var(--block-bg-green); }
+.block-color-blue { background-color: var(--block-bg-blue); }
+.block-color-purple { background-color: var(--block-bg-purple); }
+.block-color-pink { background-color: var(--block-bg-pink); }
+.block-color-red { background-color: var(--block-bg-red); }
+
+// Notion-style page layout
+.notion-page {
+  font-family: var(--notion-font-body);
+  line-height: var(--notion-line-height);
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 0 var(--notion-page-padding);
+
+  @media (max-width: 768px) {
+    padding: 0 24px;
+  }
+}
+
+// Notion-style block
+.notion-block {
+  padding: var(--notion-block-spacing) 0;
+  margin: 0;
+  position: relative;
+
+  &:hover {
+    .notion-block-handle {
+      opacity: 1;
+    }
+  }
+}
+
+// Block drag handle
+.notion-block-handle {
+  position: absolute;
+  left: -24px;
+  top: 50%;
+  transform: translateY(-50%);
+  opacity: 0;
+  transition: opacity 0.15s;
+  cursor: grab;
+
+  &:active {
+    cursor: grabbing;
+  }
+}
+
+// Callout styles
+.notion-callout {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px;
+  border-radius: 8px;
+  background-color: var(--block-bg-yellow);
+
+  &.callout-gray { background-color: var(--block-bg-gray); }
+  &.callout-brown { background-color: var(--block-bg-brown); }
+  &.callout-orange { background-color: var(--block-bg-orange); }
+  &.callout-yellow { background-color: var(--block-bg-yellow); }
+  &.callout-green { background-color: var(--block-bg-green); }
+  &.callout-blue { background-color: var(--block-bg-blue); }
+  &.callout-purple { background-color: var(--block-bg-purple); }
+  &.callout-pink { background-color: var(--block-bg-pink); }
+  &.callout-red { background-color: var(--block-bg-red); }
+}
+
+// Code block styles
+.notion-code {
+  font-family: var(--notion-font-mono);
+  font-size: 14px;
+  line-height: 1.5;
+  padding: 16px;
+  border-radius: 8px;
+  overflow-x: auto;
+  background-color: var(--color-surface-overlay);
+}
+
+// Toggle block
+.notion-toggle {
+  > .toggle-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+
+    .toggle-icon {
+      transition: transform 0.15s;
+    }
+
+    &.collapsed .toggle-icon {
+      transform: rotate(-90deg);
+    }
+  }
+
+  > .toggle-content {
+    margin-left: 24px;
+    padding-left: 16px;
+    border-left: 2px solid var(--color-border);
+    margin-top: 8px;
+  }
+}
+
+// Quote block
+.notion-quote {
+  border-left: 3px solid var(--color-text-primary);
+  padding-left: 16px;
+  font-style: italic;
+  opacity: 0.9;
+}
+
+// Divider
+.notion-divider {
+  height: 1px;
+  background-color: var(--color-border);
+  margin: 16px 0;
+}
+
+// Timestamp block (Distillai-specific)
+.notion-timestamp {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px;
+  border-radius: 6px;
+  background-color: rgba(6, 182, 212, 0.1);
+  color: #06b6d4;
+  font-family: var(--notion-font-mono);
+  font-size: 14px;
+  cursor: pointer;
+  transition: background-color 0.15s;
+
+  &:hover {
+    background-color: rgba(6, 182, 212, 0.2);
+  }
+}
+
+// AI Summary block (Distillai-specific)
+.notion-ai-summary {
+  padding: 16px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.1), rgba(139, 92, 246, 0.05));
+  border: 1px solid rgba(139, 92, 246, 0.2);
+
+  .ai-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px;
+    color: #8b5cf6;
+    margin-bottom: 8px;
+  }
+}
+
+// Slash command palette
+.slash-command-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.1s;
+
+  &:hover,
+  &.selected {
+    background-color: var(--color-surface-overlay);
+  }
+
+  .icon-wrapper {
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
   }
 }

@@ -67,6 +67,34 @@ const confirmCategorySchema = z.object({
   tags: z.array(z.string().max(50)).max(10).optional(),
 });
 
+// Page hierarchy schemas
+const createPageSchema = z.object({
+  title: z.string().max(200).optional(),
+  parentId: z.string().uuid().optional(),
+  isFolder: z.boolean().optional(),
+  pageIcon: z.string().max(100).optional(),
+  sourceType: sourceTypeEnum.optional(),
+});
+
+const movePageSchema = z.object({
+  parentId: z.string().uuid().nullable(),
+  position: z.number().int().min(0),
+});
+
+const updatePageSchema = z.object({
+  title: z.string().max(200).optional(),
+  parentId: z.string().uuid().nullable().optional(),
+  pageIcon: z.string().max(100).nullable().optional(),
+  pageCover: z.string().url().nullable().optional(),
+  isFolder: z.boolean().optional(),
+  position: z.number().int().min(0).optional(),
+});
+
+const reorderPagesSchema = z.object({
+  pageIds: z.array(z.string().uuid()),
+  parentId: z.string().uuid().nullable().optional(),
+});
+
 const listQuerySchema = z.object({
   folderId: z.string().uuid().optional(),
   categoryId: z.string().uuid().optional(),
@@ -112,5 +140,15 @@ router.post('/:id/summarize', lectureController.summarizeLecture);
 
 // AI Category
 router.put('/:id/confirm-category', validate(confirmCategorySchema), lectureController.confirmCategory);
+
+// ============================================
+// Page Hierarchy Routes
+// ============================================
+router.get('/pages/tree', lectureController.getPageTree);
+router.post('/pages', validate(createPageSchema), lectureController.createPageHandler);
+router.post('/pages/reorder', validate(reorderPagesSchema), lectureController.reorderPagesHandler);
+router.put('/pages/:id', validate(updatePageSchema), lectureController.updatePageHandler);
+router.put('/pages/:id/move', validate(movePageSchema), lectureController.movePageHandler);
+router.put('/pages/:id/collapse', lectureController.toggleCollapseHandler);
 
 export default router;

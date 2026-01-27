@@ -87,7 +87,7 @@ export interface SmartFolder {
   name: string;
   nameEn: string;
   icon: string;
-  type: 'all' | 'recent' | 'uncategorized' | 'processing' | 'tag';
+  type: 'all' | 'recent' | 'uncategorized' | 'processing' | 'tag' | 'favorites';
   value?: string;
   count?: number;
 }
@@ -105,6 +105,113 @@ export interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
   createdAt: string;
+}
+
+// Block types for Notion-style editor
+export type BlockType =
+  | 'text' | 'heading1' | 'heading2' | 'heading3'
+  | 'bullet' | 'numbered' | 'todo' | 'toggle'
+  | 'quote' | 'callout' | 'divider' | 'code'
+  | 'timestamp' | 'ai_summary' | 'embed';
+
+export type BlockColor =
+  | 'default' | 'gray' | 'brown' | 'orange' | 'yellow'
+  | 'green' | 'blue' | 'purple' | 'pink' | 'red';
+
+export interface BlockProperties {
+  level?: 1 | 2 | 3;
+  checked?: boolean;
+  collapsed?: boolean;
+  icon?: string;
+  color?: BlockColor;
+  language?: string;
+  timestamp?: string;
+  aiGenerated?: boolean;
+  embedUrl?: string;
+  embedType?: 'youtube' | 'image' | 'link';
+}
+
+export interface Block {
+  id: string;
+  distillationId: string;
+  parentId: string | null;
+  type: BlockType;
+  content: string;
+  properties: BlockProperties;
+  position: number;
+  createdAt: string;
+  updatedAt: string;
+  children?: Block[];
+}
+
+export interface CreateBlockInput {
+  distillationId: string;
+  parentId?: string;
+  type: BlockType;
+  content: string;
+  properties?: BlockProperties;
+  position?: number;
+}
+
+export interface UpdateBlockInput {
+  type?: BlockType;
+  content?: string;
+  properties?: BlockProperties;
+  position?: number;
+  parentId?: string | null;
+}
+
+// ============================================
+// Page Hierarchy Types
+// ============================================
+
+export interface PageTreeNode {
+  id: string;
+  parentId: string | null;
+  title: string;
+  pageIcon: string | null;
+  isFolder: boolean;
+  collapsed: boolean;
+  position: number;
+  status: 'pending' | 'uploading' | 'processing' | 'crystallized' | 'failed';
+  sourceType: SourceType;
+  audioUrl: string | null;
+  durationSeconds: number | null;
+  createdAt: string;
+  updatedAt: string;
+  depth: number;
+  children: PageTreeNode[];
+}
+
+export interface CreatePage {
+  title?: string;
+  parentId?: string;
+  isFolder?: boolean;
+  pageIcon?: string;
+  sourceType?: SourceType;
+}
+
+export interface MovePage {
+  parentId: string | null;
+  position: number;
+}
+
+export interface UpdatePage {
+  title?: string;
+  parentId?: string | null;
+  pageIcon?: string | null;
+  pageCover?: string | null;
+  isFolder?: boolean;
+  position?: number;
+}
+
+export interface DistillationWithHierarchy extends Distillation {
+  parentId: string | null;
+  position: number;
+  isFolder: boolean;
+  collapsed: boolean;
+  pageIcon: string | null;
+  pageCover: string | null;
 }
 
 @Injectable({
@@ -323,6 +430,78 @@ export class ApiService {
   // Create from X (Twitter) URL
   createFromX(url: string, categoryId?: string): Observable<ApiResponse<Lecture>> {
     return this.request('POST', '/lectures/x', { url, categoryId });
+  }
+
+  // ============================================
+  // Blocks (Notion-style editor)
+  // ============================================
+
+  getBlocks(distillationId: string): Observable<ApiResponse<Block[]>> {
+    return this.request('GET', `/blocks/${distillationId}`);
+  }
+
+  getBlock(blockId: string): Observable<ApiResponse<Block>> {
+    return this.request('GET', `/blocks/single/${blockId}`);
+  }
+
+  createBlock(input: CreateBlockInput): Observable<ApiResponse<Block>> {
+    return this.request('POST', '/blocks', input);
+  }
+
+  createBlocks(distillationId: string, blocks: Omit<CreateBlockInput, 'distillationId'>[]): Observable<ApiResponse<Block[]>> {
+    return this.request('POST', '/blocks/batch', { distillationId, blocks });
+  }
+
+  updateBlock(blockId: string, input: UpdateBlockInput): Observable<ApiResponse<Block>> {
+    return this.request('PUT', `/blocks/${blockId}`, input);
+  }
+
+  deleteBlock(blockId: string): Observable<void> {
+    return this.request('DELETE', `/blocks/${blockId}`);
+  }
+
+  deleteAllBlocks(distillationId: string): Observable<void> {
+    return this.request('DELETE', `/blocks/all/${distillationId}`);
+  }
+
+  reorderBlocks(distillationId: string, blockIds: string[]): Observable<void> {
+    return this.request('PUT', `/blocks/reorder/${distillationId}`, { blockIds });
+  }
+
+  moveBlock(blockId: string, newParentId: string | null, newPosition: number): Observable<ApiResponse<Block>> {
+    return this.request('PUT', `/blocks/${blockId}/move`, { newParentId, newPosition });
+  }
+
+  migrateToBlocks(distillationId: string): Observable<ApiResponse<Block[]>> {
+    return this.request('POST', `/blocks/migrate/${distillationId}`);
+  }
+
+  // ============================================
+  // Page Hierarchy
+  // ============================================
+
+  getPageTree(): Observable<ApiResponse<PageTreeNode[]>> {
+    return this.request('GET', '/lectures/pages/tree');
+  }
+
+  createPage(input: CreatePage): Observable<ApiResponse<DistillationWithHierarchy>> {
+    return this.request('POST', '/lectures/pages', input);
+  }
+
+  updatePage(pageId: string, input: UpdatePage): Observable<ApiResponse<DistillationWithHierarchy>> {
+    return this.request('PUT', `/lectures/pages/${pageId}`, input);
+  }
+
+  movePage(pageId: string, move: MovePage): Observable<{ success: boolean }> {
+    return this.request('PUT', `/lectures/pages/${pageId}/move`, move);
+  }
+
+  togglePageCollapse(pageId: string): Observable<ApiResponse<DistillationWithHierarchy>> {
+    return this.request('PUT', `/lectures/pages/${pageId}/collapse`);
+  }
+
+  reorderPages(pageIds: string[], parentId?: string | null): Observable<{ success: boolean }> {
+    return this.request('POST', '/lectures/pages/reorder', { pageIds, parentId });
   }
 
   // Upload file with progress tracking

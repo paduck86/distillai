@@ -29,9 +29,19 @@ export class FolderStateService {
   // Smart Folders (하드코딩)
   smartFolders = signal<SmartFolder[]>([
     { id: 'dashboard', name: '대시보드', nameEn: 'Dashboard', icon: 'pi-home', type: 'all' },
+    { id: 'favorites', name: '즐겨찾기', nameEn: 'Favorites', icon: 'pi-star-fill', type: 'favorites' },
+    { id: 'recent', name: '최근 본 항목', nameEn: 'Recent', icon: 'pi-clock', type: 'recent' },
     { id: 'all', name: '전체', nameEn: 'All', icon: 'pi-list', type: 'all' },
-    { id: 'recent', name: '최근 7일', nameEn: 'Recent 7 days', icon: 'pi-clock', type: 'recent' },
   ]);
+
+  // 최근 본 항목 (로컬 스토리지에 저장)
+  private readonly RECENT_STORAGE_KEY = 'distillai_recent_views';
+  private readonly MAX_RECENT_ITEMS = 20;
+  recentViews = signal<{ id: string; title: string; viewedAt: string }[]>(this.loadRecentViews());
+
+  // 즐겨찾기 (로컬 스토리지에 저장 - DB 마이그레이션 전까지)
+  private readonly FAVORITES_STORAGE_KEY = 'distillai_favorites';
+  favorites = signal<string[]>(this.loadFavorites());
 
   // Computed: 폴더 트리 구조
   folderTree = computed<FolderTreeNode[]>(() => {
@@ -190,5 +200,105 @@ export class FolderStateService {
    */
   setCategories(categories: CategoryWithCount[]): void {
     this.categories.set(categories);
+  }
+
+  // ============ Recent Views ============
+
+  /**
+   * 로컬 스토리지에서 최근 본 항목 로드
+   */
+  private loadRecentViews(): { id: string; title: string; viewedAt: string }[] {
+    try {
+      const stored = localStorage.getItem(this.RECENT_STORAGE_KEY);
+      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * 최근 본 항목 추가
+   */
+  addRecentView(id: string, title: string): void {
+    const now = new Date().toISOString();
+    let recent = this.recentViews().filter(r => r.id !== id);
+    recent.unshift({ id, title, viewedAt: now });
+    recent = recent.slice(0, this.MAX_RECENT_ITEMS);
+
+    this.recentViews.set(recent);
+    localStorage.setItem(this.RECENT_STORAGE_KEY, JSON.stringify(recent));
+  }
+
+  /**
+   * 최근 본 항목에서 제거
+   */
+  removeRecentView(id: string): void {
+    const recent = this.recentViews().filter(r => r.id !== id);
+    this.recentViews.set(recent);
+    localStorage.setItem(this.RECENT_STORAGE_KEY, JSON.stringify(recent));
+  }
+
+  /**
+   * 최근 본 항목 초기화
+   */
+  clearRecentViews(): void {
+    this.recentViews.set([]);
+    localStorage.removeItem(this.RECENT_STORAGE_KEY);
+  }
+
+  // ============ Favorites ============
+
+  /**
+   * 로컬 스토리지에서 즐겨찾기 로드
+   */
+  private loadFavorites(): string[] {
+    try {
+      const stored = localStorage.getItem(this.FAVORITES_STORAGE_KEY);
+      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * 즐겨찾기 토글
+   */
+  toggleFavorite(id: string): void {
+    const current = this.favorites();
+    const isFavorite = current.includes(id);
+
+    const updated = isFavorite
+      ? current.filter(fid => fid !== id)
+      : [...current, id];
+
+    this.favorites.set(updated);
+    localStorage.setItem(this.FAVORITES_STORAGE_KEY, JSON.stringify(updated));
+  }
+
+  /**
+   * 즐겨찾기 여부 확인
+   */
+  isFavorite(id: string): boolean {
+    return this.favorites().includes(id);
+  }
+
+  /**
+   * 즐겨찾기 추가
+   */
+  addFavorite(id: string): void {
+    if (!this.isFavorite(id)) {
+      const updated = [...this.favorites(), id];
+      this.favorites.set(updated);
+      localStorage.setItem(this.FAVORITES_STORAGE_KEY, JSON.stringify(updated));
+    }
+  }
+
+  /**
+   * 즐겨찾기 제거
+   */
+  removeFavorite(id: string): void {
+    const updated = this.favorites().filter(fid => fid !== id);
+    this.favorites.set(updated);
+    localStorage.setItem(this.FAVORITES_STORAGE_KEY, JSON.stringify(updated));
   }
 }

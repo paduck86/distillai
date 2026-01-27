@@ -6,8 +6,14 @@ import type {
   UpdateDistillation,
   DistillationRow,
   DistillationStatus,
+  PageTreeNode,
+  PageTreeRow,
+  CreatePage,
+  MovePage,
+  DistillationWithHierarchy,
+  DistillationRowWithHierarchy,
 } from '../types/index.js';
-import { mapDistillationRow } from '../types/index.js';
+import { mapDistillationRow, mapPageTreeRow, mapDistillationRowWithHierarchy } from '../types/index.js';
 
 interface ListOptions {
   folderId?: string;
@@ -502,4 +508,191 @@ export async function createDistillationWithXContent(
   }
 
   return mapDistillationRow(row);
+}
+
+// ============================================
+// Page Hierarchy Functions
+// ============================================
+
+/**
+ * 페이지 트리 조회
+ */
+export async function getPageTree(userId: string): Promise<PageTreeNode[]> {
+  const rows = await query<PageTreeRow>(
+    `SELECT * FROM distillai.get_page_tree($1)`,
+    [userId]
+  );
+
+  // Build tree structure from flat list
+  const nodeMap = new Map<string, PageTreeNode>();
+  const roots: PageTreeNode[] = [];
+
+  // First pass: create all nodes
+  for (const row of rows) {
+    const node: PageTreeNode = {
+      ...mapPageTreeRow(row),
+      children: [],
+    };
+    nodeMap.set(node.id, node);
+  }
+
+  // Second pass: build tree
+  for (const row of rows) {
+    const node = nodeMap.get(row.id)!;
+    if (row.parent_id && nodeMap.has(row.parent_id)) {
+      nodeMap.get(row.parent_id)!.children.push(node);
+    } else {
+      roots.push(node);
+    }
+  }
+
+  return roots;
+}
+
+/**
+ * 빈 페이지 생성 (노션 스타일)
+ */
+export async function createPage(userId: string, input: CreatePage): Promise<DistillationWithHierarchy> {
+  const title = input.title?.trim() || 'Untitled';
+  const sourceType = input.sourceType || 'note';
+
+  const row = await queryOne<DistillationRowWithHierarchy>(
+    `INSERT INTO distillai.distillations (
+      user_id, title, parent_id, is_folder, page_icon, source_type, status, position
+    )
+    VALUES ($1, $2, $3, $4, $5, $6, 'crystallized', COALESCE(
+      (SELECT MAX(position) + 1 FROM distillai.distillations WHERE user_id = $1 AND parent_id IS NOT DISTINCT FROM $3),
+      0
+    ))
+    RETURNING *`,
+    [
+      userId,
+      title,
+      input.parentId ?? null,
+      input.isFolder ?? false,
+      input.pageIcon ?? null,
+      sourceType,
+    ]
+  );
+
+  if (!row) {
+    throw new Error('Failed to create page');
+  }
+
+  return mapDistillationRowWithHierarchy(row);
+}
+
+/**
+ * 페이지 이동 (부모 변경 + 위치 변경)
+ */
+export async function movePage(
+  userId: string,
+  pageId: string,
+  move: MovePage
+): Promise<void> {
+  // DB 함수 호출
+  await query(
+    `SELECT distillai.move_page($1, $2, $3, $4)`,
+    [userId, pageId, move.parentId, move.position]
+  );
+}
+
+/**
+ * 페이지 접힘 상태 토글
+ */
+export async function toggleCollapse(
+  userId: string,
+  pageId: string
+): Promise<DistillationWithHierarchy> {
+  const row = await queryOne<DistillationRowWithHierarchy>(
+    `UPDATE distillai.distillations
+     SET collapsed = NOT collapsed, updated_at = NOW()
+     WHERE id = $1 AND user_id = $2
+     RETURNING *`,
+    [pageId, userId]
+  );
+
+  if (!row) {
+    throw new NotFoundError('Page');
+  }
+
+  return mapDistillationRowWithHierarchy(row);
+}
+
+/**
+ * 페이지 업데이트 (제목, 아이콘, 부모 등)
+ */
+export async function updatePageHierarchy(
+  userId: string,
+  pageId: string,
+  updates: {
+    title?: string;
+    parentId?: string | null;
+    pageIcon?: string | null;
+    pageCover?: string | null;
+    isFolder?: boolean;
+    position?: number;
+  }
+): Promise<DistillationWithHierarchy> {
+  // First verify ownership
+  await getDistillation(userId, pageId);
+
+  const setClauses: string[] = [];
+  const params: unknown[] = [];
+  let paramIndex = 1;
+
+  if (updates.title !== undefined) {
+    setClauses.push(`title = $${paramIndex++}`);
+    params.push(updates.title);
+  }
+  if (updates.parentId !== undefined) {
+    setClauses.push(`parent_id = $${paramIndex++}`);
+    params.push(updates.parentId);
+  }
+  if (updates.pageIcon !== undefined) {
+    setClauses.push(`page_icon = $${paramIndex++}`);
+    params.push(updates.pageIcon);
+  }
+  if (updates.pageCover !== undefined) {
+    setClauses.push(`page_cover = $${paramIndex++}`);
+    params.push(updates.pageCover);
+  }
+  if (updates.isFolder !== undefined) {
+    setClauses.push(`is_folder = $${paramIndex++}`);
+    params.push(updates.isFolder);
+  }
+  if (updates.position !== undefined) {
+    setClauses.push(`position = $${paramIndex++}`);
+    params.push(updates.position);
+  }
+
+  setClauses.push(`updated_at = NOW()`);
+
+  const row = await queryOne<DistillationRowWithHierarchy>(
+    `UPDATE distillai.distillations
+     SET ${setClauses.join(', ')}
+     WHERE id = $${paramIndex++} AND user_id = $${paramIndex}
+     RETURNING *`,
+    [...params, pageId, userId]
+  );
+
+  if (!row) {
+    throw new NotFoundError('Page');
+  }
+
+  return mapDistillationRowWithHierarchy(row);
+}
+
+/**
+ * 페이지 순서 일괄 업데이트
+ */
+export async function reorderPages(
+  userId: string,
+  pageIds: string[],
+  parentId: string | null
+): Promise<void> {
+  await query(
+    `SELECT distillai.reorder_pages($1, $2, $3)`,
+    [userId, pageIds, parentId]
+  );
 }

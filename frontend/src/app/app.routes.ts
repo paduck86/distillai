@@ -28,6 +28,11 @@ export const routes: Routes = [
     loadComponent: () => import('./features/lecture/record.component').then(m => m.RecordComponent)
   },
   {
+    path: 'page',
+    canActivate: [authGuard],
+    loadChildren: () => import('./features/page/page.routes').then(m => m.PAGE_ROUTES)
+  },
+  {
     path: '**',
     redirectTo: 'dashboard'
   }

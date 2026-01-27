@@ -3,9 +3,9 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { SupabaseService } from '../../core/services/supabase.service';
-import { ApiService, Distillation, SourceType, SmartFolder, CategoryWithCount } from '../../core/services/api.service';
+import { ApiService, Distillation, SourceType, SmartFolder } from '../../core/services/api.service';
 import { ThemeService } from '../../core/services/theme.service';
-import { FolderStateService } from '../../core/services/folder-state.service';
+import { PageStateService } from '../../core/services/page-state.service';
 import { ButtonModule } from 'primeng/button';
 import { AvatarModule } from 'primeng/avatar';
 import { DialogModule } from 'primeng/dialog';
@@ -112,15 +112,15 @@ import { SidebarComponent } from './components/sidebar.component';
           class="shrink-0 fixed md:relative inset-y-0 left-0 z-50 md:z-auto transition-transform duration-300 ease-in-out md:translate-x-0"
           [class]="sidebarOpen() ? 'translate-x-0' : '-translate-x-full md:translate-x-0'"
           (smartFolderSelected)="onSmartFolderSelected($event); sidebarOpen.set(false)"
-          (categorySelected)="onCategorySelected($event); sidebarOpen.set(false)"
-          (dashboardRequested)="onDashboardRequested(); sidebarOpen.set(false)">
+          (pageSelected)="onPageSelected($event); sidebarOpen.set(false)"
+          (createPageRequested)="onCreatePageRequested($event); sidebarOpen.set(false)">
         </app-sidebar>
 
         <!-- Main Content -->
         <main class="flex-1 overflow-y-auto px-4 md:px-6 py-4 md:py-6">
 
         <!-- Hero Section + Import Tabs (Dashboard view or "새 프로젝트" clicked) -->
-        @if (isNewProjectMode() || folderState.selectedSmartFolderId() === 'dashboard') {
+        @if (isNewProjectMode() || pageState.selectedSmartFolderId() === 'all') {
           <!-- Hero Section -->
           <section class="text-center mb-4 md:mb-6">
             <h1 class="text-xl md:text-2xl font-bold mb-2">
@@ -1071,7 +1071,7 @@ export class DashboardComponent implements OnInit {
   private supabase = inject(SupabaseService);
   private api = inject(ApiService);
   theme = inject(ThemeService);
-  folderState = inject(FolderStateService);
+  pageState = inject(PageStateService);
 
   private searchSubject = new Subject<string>();
 
@@ -1155,18 +1155,18 @@ export class DashboardComponent implements OnInit {
 
   // Computed: Section title based on selected menu
   sectionTitle = computed(() => {
-    const smartFolderId = this.folderState.selectedSmartFolderId();
-    const categoryId = this.folderState.selectedCategoryId();
+    const smartFolderId = this.pageState.selectedSmartFolderId();
+    const pageId = this.pageState.selectedPageId();
 
-    if (categoryId) {
-      const category = this.folderState.categories().find(c => c.id === categoryId);
-      return category?.name || '프로젝트';
+    if (pageId) {
+      const page = this.pageState.flattenedPages().find(p => p.id === pageId);
+      return page?.title || '프로젝트';
     }
 
     switch (smartFolderId) {
-      case 'dashboard': return '최근 프로젝트';
       case 'all': return '전체 프로젝트';
-      case 'recent': return '최근 7일';
+      case 'favorites': return '즐겨찾기';
+      case 'recent': return '최근 본 항목';
       default: return '프로젝트';
     }
   });
@@ -1250,7 +1250,8 @@ export class DashboardComponent implements OnInit {
   }
 
   goToRecord() { this.router.navigate(['/record']); }
-  openDistillation(id: string) { this.router.navigate(['/lecture', id]); }
+  openDistillation(id: string) { this.router.navigate(['/page', id]); }
+  openDistillationLegacy(id: string) { this.router.navigate(['/lecture', id]); }
 
   selectImportTab(tabId: string) {
     this.selectedImportTab.set(tabId);
@@ -1308,7 +1309,7 @@ export class DashboardComponent implements OnInit {
     formData.append('file', file);
     formData.append('title', this.cleanFilename(file.name));
     formData.append('sourceType', 'pdf');
-    const categoryId = this.folderState.selectedCategoryId();
+    const categoryId = this.pageState.selectedPageId();
     if (categoryId) formData.append('categoryId', categoryId);
 
     this.api.uploadFile(formData, (p) => this.uploadProgress.set(Math.round(p))).subscribe({
@@ -1349,7 +1350,7 @@ export class DashboardComponent implements OnInit {
     if (durationSeconds) {
       formData.append('durationSeconds', String(Math.round(durationSeconds)));
     }
-    const categoryId = this.folderState.selectedCategoryId();
+    const categoryId = this.pageState.selectedPageId();
     if (categoryId) formData.append('categoryId', categoryId);
 
     this.api.uploadFile(formData, (p) => this.uploadProgress.set(Math.round(p))).subscribe({
@@ -1445,7 +1446,7 @@ export class DashboardComponent implements OnInit {
       return;
     }
     this.youtubeLoading.set(true); this.youtubeError.set('');
-    const categoryId = this.folderState.selectedCategoryId() || undefined;
+    const categoryId = this.pageState.selectedPageId() || undefined;
     this.api.createFromYoutube(url, categoryId).subscribe({
       next: (res) => { this.youtubeLoading.set(false); this.showYoutubeDialog = false; this.router.navigate(['/lecture', res.data.id]); },
       error: (err) => { this.youtubeError.set(err.error?.message || '가져오기 실패'); this.youtubeLoading.set(false); }
@@ -1463,7 +1464,7 @@ export class DashboardComponent implements OnInit {
     if (!url) return;
     try { new URL(url); } catch { this.urlError.set('올바른 URL을 입력해주세요.'); return; }
     this.urlLoading.set(true); this.urlError.set('');
-    const categoryId = this.folderState.selectedCategoryId() || undefined;
+    const categoryId = this.pageState.selectedPageId() || undefined;
     this.api.createFromUrl(url, categoryId).subscribe({
       next: (res) => { this.urlLoading.set(false); this.showUrlDialog = false; this.router.navigate(['/lecture', res.data.id]); },
       error: (err) => { this.urlError.set(err.error?.message || '가져오기 실패'); this.urlLoading.set(false); }
@@ -1477,7 +1478,7 @@ export class DashboardComponent implements OnInit {
       return;
     }
     this.textLoading.set(true); this.textError.set('');
-    const categoryId = this.folderState.selectedCategoryId() || undefined;
+    const categoryId = this.pageState.selectedPageId() || undefined;
     this.api.createFromText(text, undefined, categoryId).subscribe({
       next: (res) => {
         this.textLoading.set(false);
@@ -1500,7 +1501,7 @@ export class DashboardComponent implements OnInit {
       return;
     }
     this.xLoading.set(true); this.xError.set('');
-    const categoryId = this.folderState.selectedCategoryId() || undefined;
+    const categoryId = this.pageState.selectedPageId() || undefined;
     this.api.createFromX(url, categoryId).subscribe({
       next: (res) => {
         this.xLoading.set(false);
@@ -1519,7 +1520,7 @@ export class DashboardComponent implements OnInit {
     const title = this.noteTitle().trim();
     if (!title) return;
     this.noteLoading.set(true);
-    const categoryId = this.folderState.selectedCategoryId() || undefined;
+    const categoryId = this.pageState.selectedPageId() || undefined;
     this.api.createNote(title, categoryId).subscribe({
       next: (res) => {
         this.noteLoading.set(false);
@@ -1546,7 +1547,7 @@ export class DashboardComponent implements OnInit {
     if (!content) return;
     this.clipboardLoading.set(true); this.clipboardError.set('');
     const title = this.clipboardTitle().trim() || undefined;
-    const categoryId = this.folderState.selectedCategoryId() || undefined;
+    const categoryId = this.pageState.selectedPageId() || undefined;
     this.api.createFromClipboard(content, title, categoryId).subscribe({
       next: (res) => {
         this.clipboardLoading.set(false);
@@ -1599,46 +1600,55 @@ export class DashboardComponent implements OnInit {
 
   // Sidebar event handlers
   onSmartFolderSelected(smart: SmartFolder) {
-    this.isNewProjectMode.set(false);  // 메뉴 선택 시 새 프로젝트 모드 해제
+    this.isNewProjectMode.set(smart.id === 'all');
     this.selectedTypeFilter.set(null);
     this.loadDistillationsWithFilter({ smartFolder: smart });
   }
 
-  onCategorySelected(category: CategoryWithCount) {
-    this.isNewProjectMode.set(false);  // 카테고리 선택 시 새 프로젝트 모드 해제
-    this.selectedTypeFilter.set(null);
-    this.loadDistillationsWithFilter({ categoryId: category.id });
+  onPageSelected(pageId: string) {
+    this.isNewProjectMode.set(false);
+    this.router.navigate(['/page', pageId]);
   }
 
-  onDashboardRequested() {
-    this.isNewProjectMode.set(true);  // "새 프로젝트" 클릭 시 프로젝트 리스트 숨김
+  async onCreatePageRequested(parentId: string | undefined) {
+    this.isNewProjectMode.set(true);
+    // Page creation is handled by sidebar, just show the import UI
   }
 
   private loadDistillationsWithFilter(filter: {
     smartFolder?: SmartFolder;
-    categoryId?: string;
   }) {
     this.loading.set(true);
-    const params: { categoryId?: string; status?: string; sourceType?: SourceType; search?: string } = {};
+    const params: { sourceType?: SourceType; search?: string } = {};
 
     if (this.searchQuery()) params.search = this.searchQuery();
 
-    if (filter.smartFolder) {
-      switch (filter.smartFolder.id) {
-        case 'dashboard':
-        case 'all':
-          // No filter - show all
-          break;
-        case 'recent':
-          // Recent 7 days - handled on server or filter client-side
-          break;
-      }
-    } else if (filter.categoryId) {
-      params.categoryId = filter.categoryId;
-    }
-
     this.api.getLectures(params).subscribe({
-      next: (res) => { this.distillations.set(res.data); this.loading.set(false); },
+      next: (res) => {
+        let data = res.data;
+
+        // Filter favorites client-side
+        if (filter.smartFolder?.id === 'favorites') {
+          const favoriteIds = this.pageState.favorites();
+          data = data.filter(d => favoriteIds.includes(d.id));
+        }
+
+        // Filter recent views client-side
+        if (filter.smartFolder?.id === 'recent') {
+          const recentIds = this.pageState.recentViews().map(r => r.id);
+          const recentMap = new Map(this.pageState.recentViews().map(r => [r.id, r.viewedAt]));
+          data = data.filter(d => recentIds.includes(d.id));
+          // Sort by viewed time (most recent first)
+          data.sort((a, b) => {
+            const aTime = recentMap.get(a.id) || '';
+            const bTime = recentMap.get(b.id) || '';
+            return bTime.localeCompare(aTime);
+          });
+        }
+
+        this.distillations.set(data);
+        this.loading.set(false);
+      },
       error: () => this.loading.set(false)
     });
   }
