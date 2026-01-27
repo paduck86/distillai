@@ -1,5 +1,9 @@
 import pg from 'pg';
+import dns from 'dns';
 import { env } from './env.js';
+
+// Force IPv4 DNS resolution to avoid ENETUNREACH errors with IPv6
+dns.setDefaultResultOrder('ipv4first');
 
 const { Pool } = pg;
 
@@ -7,6 +11,7 @@ const { Pool } = pg;
 export const pool = new Pool({
   connectionString: env.DATABASE_URL,
   ssl: env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+  connectionTimeoutMillis: 10000,
 });
 
 // Helper for single queries
@@ -29,9 +34,9 @@ export async function queryOne<T = unknown>(
 
 // Test connection on startup
 pool.on('connect', () => {
-  console.log('📦 PostgreSQL connected');
+  console.log('PostgreSQL connected');
 });
 
 pool.on('error', (err) => {
-  console.error('❌ PostgreSQL error:', err);
+  console.error('PostgreSQL error:', err);
 });
