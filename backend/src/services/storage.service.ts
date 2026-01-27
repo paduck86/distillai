@@ -14,6 +14,14 @@ export async function uploadAudio(
   const timestamp = Date.now();
   const path = `${userId}/${lectureId}/${timestamp}.${extension}`;
 
+  // Debug logging
+  console.log('Storage upload attempt:', {
+    bucket: BUCKET_NAME,
+    path,
+    bufferSize: `${(buffer.length / 1024 / 1024).toFixed(2)}MB`,
+    mimeType,
+  });
+
   const { error } = await supabaseAdmin.storage
     .from(BUCKET_NAME)
     .upload(path, buffer, {
@@ -22,9 +30,11 @@ export async function uploadAudio(
     });
 
   if (error) {
+    console.error('Storage upload error:', error);
     throw new AppError(500, 'UPLOAD_FAILED', `Failed to upload audio: ${error.message}`);
   }
 
+  console.log('Storage upload success:', path);
   return path;
 }
 
