@@ -684,7 +684,7 @@ interface ActionItem {
                         @for (section of parsedSections(); track section.number; let i = $index) {
                           <!-- Section Card (Lilys Style) -->
                           <section class="summary-section-card mb-8 p-6 rounded-xl border transition-all"
-                                   [id]="'section-' + section.number">
+                                   [id]="'section-' + section.number.replace('.', '-')"
                             <!-- Section Header -->
                             <div class="flex items-start gap-4 mb-5">
                               <div class="flex items-center gap-3 flex-1">
@@ -717,7 +717,8 @@ interface ActionItem {
                               @for (item of section.items; track $index) {
                                 <!-- Subsection (1.1, 1.2, etc.) -->
                                 @if (item.type === 'subsection') {
-                                  <div class="mt-8 mb-4 pt-4 border-t border-theme">
+                                  <div class="mt-8 mb-4 pt-4 border-t border-theme"
+                                       [id]="'section-' + (item.marker || '').replace('.', '-')">
                                     <div class="flex items-center gap-3">
                                       <span class="subsection-marker flex items-center justify-center px-3 py-1.5 rounded-lg font-mono text-sm font-bold border">
                                         {{ item.marker }}
