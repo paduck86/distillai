@@ -77,7 +77,7 @@ export interface UpdateFolder {
 }
 
 // Source Type (콘텐츠 소스 유형)
-export type SourceType = 'youtube' | 'audio' | 'video' | 'url' | 'recording' | 'pdf' | 'website' | 'text';
+export type SourceType = 'youtube' | 'audio' | 'video' | 'url' | 'recording' | 'pdf' | 'website' | 'text' | 'note' | 'x_thread' | 'clipboard';
 
 // Distillation (노트)
 export interface Distillation {
@@ -108,6 +108,13 @@ export interface Distillation {
   aiConfidence: number | null;
   aiReasoning: string | null;
   categoryConfirmed: boolean;
+  // 사용자 노트
+  userNotes: string | null;
+  // X (Twitter) 관련 필드
+  xAuthorHandle: string | null;
+  xAuthorName: string | null;
+  xTweetId: string | null;
+  xMediaUrls: string[];
 }
 
 export type DistillationStatus = 'pending' | 'uploading' | 'processing' | 'crystallized' | 'failed';
@@ -151,6 +158,61 @@ export interface ChatMessage {
 export interface CreateChatMessage {
   distillationId: string;
   content: string;
+}
+
+// ============================================
+// Note Link Types (양방향 링크)
+// ============================================
+export type LinkType = 'related' | 'parent' | 'reference' | 'quote';
+
+export interface NoteLink {
+  id: string;
+  userId: string;
+  sourceId: string;
+  targetId: string;
+  linkType: LinkType;
+  context: string | null;
+  createdAt: string;
+}
+
+export interface CreateNoteLink {
+  sourceId: string;
+  targetId: string;
+  linkType?: LinkType;
+  context?: string;
+}
+
+// ============================================
+// Highlight Types (하이라이트)
+// ============================================
+export type HighlightColor = 'yellow' | 'green' | 'blue' | 'red' | 'purple';
+
+export interface Highlight {
+  id: string;
+  userId: string;
+  distillationId: string;
+  text: string;
+  note: string | null;
+  color: HighlightColor;
+  positionStart: number | null;
+  positionEnd: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateHighlight {
+  distillationId: string;
+  text: string;
+  note?: string;
+  color?: HighlightColor;
+  positionStart?: number;
+  positionEnd?: number;
+}
+
+export interface UpdateHighlight {
+  text?: string;
+  note?: string;
+  color?: HighlightColor;
 }
 
 // ============================================
@@ -301,10 +363,40 @@ export interface DistillationRow {
   ai_confidence: number | null;
   ai_reasoning: string | null;
   category_confirmed: boolean;
+  // 사용자 노트
+  user_notes: string | null;
+  // X (Twitter) 관련 필드
+  x_author_handle: string | null;
+  x_author_name: string | null;
+  x_tweet_id: string | null;
+  x_media_urls: string[];
 }
 
 // Legacy alias
 export type LectureRow = DistillationRow;
+
+export interface NoteLinkRow {
+  id: string;
+  user_id: string;
+  source_id: string;
+  target_id: string;
+  link_type: string;
+  context: string | null;
+  created_at: string;
+}
+
+export interface HighlightRow {
+  id: string;
+  user_id: string;
+  distillation_id: string;
+  text: string;
+  note: string | null;
+  color: string;
+  position_start: number | null;
+  position_end: number | null;
+  created_at: string;
+  updated_at: string;
+}
 
 export interface ChatMessageRow {
   id: string;
@@ -364,11 +456,45 @@ export function mapDistillationRow(row: DistillationRow): Distillation {
     aiConfidence: row.ai_confidence,
     aiReasoning: row.ai_reasoning,
     categoryConfirmed: row.category_confirmed ?? false,
+    // 사용자 노트
+    userNotes: row.user_notes ?? null,
+    // X (Twitter) 관련 필드
+    xAuthorHandle: row.x_author_handle ?? null,
+    xAuthorName: row.x_author_name ?? null,
+    xTweetId: row.x_tweet_id ?? null,
+    xMediaUrls: row.x_media_urls ?? [],
   };
 }
 
 // Legacy alias
 export const mapLectureRow = mapDistillationRow;
+
+export function mapNoteLinkRow(row: NoteLinkRow): NoteLink {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    sourceId: row.source_id,
+    targetId: row.target_id,
+    linkType: row.link_type as LinkType,
+    context: row.context,
+    createdAt: row.created_at,
+  };
+}
+
+export function mapHighlightRow(row: HighlightRow): Highlight {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    distillationId: row.distillation_id,
+    text: row.text,
+    note: row.note,
+    color: row.color as HighlightColor,
+    positionStart: row.position_start,
+    positionEnd: row.position_end,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
 
 export function mapChatMessageRow(row: ChatMessageRow): ChatMessage {
   return {

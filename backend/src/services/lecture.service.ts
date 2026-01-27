@@ -431,3 +431,75 @@ export async function getUncategorizedDistillations(
     total,
   };
 }
+
+/**
+ * 사용자 노트 업데이트
+ */
+export async function updateUserNotes(
+  userId: string,
+  distillationId: string,
+  userNotes: string
+): Promise<Distillation> {
+  const row = await queryOne<DistillationRow>(
+    `UPDATE distillai.distillations
+     SET user_notes = $1, updated_at = NOW()
+     WHERE id = $2 AND user_id = $3
+     RETURNING *`,
+    [userNotes, distillationId, userId]
+  );
+
+  if (!row) {
+    throw new NotFoundError('Distillation');
+  }
+
+  return mapDistillationRow(row);
+}
+
+/**
+ * X (Twitter) 콘텐츠와 함께 Distillation 생성
+ */
+export async function createDistillationWithXContent(
+  userId: string,
+  input: CreateDistillation & {
+    text: string;
+    xAuthorHandle: string;
+    xAuthorName: string;
+    xTweetId: string;
+    xMediaUrls: string[];
+  }
+): Promise<Distillation> {
+  const hasCategoryId = !!input.categoryId;
+
+  const row = await queryOne<DistillationRow>(
+    `INSERT INTO distillai.distillations (
+      user_id, title, description, folder_id, tags,
+      source_type, source_url, ai_suggested_category_id, category_confirmed,
+      full_transcript, status,
+      x_author_handle, x_author_name, x_tweet_id, x_media_urls
+    )
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'pending', $11, $12, $13, $14)
+    RETURNING *`,
+    [
+      userId,
+      input.title,
+      input.description ?? null,
+      input.folderId ?? null,
+      input.tags ?? [],
+      input.sourceType ?? 'x_thread',
+      input.sourceUrl ?? null,
+      input.categoryId ?? null,
+      hasCategoryId,
+      input.text,
+      input.xAuthorHandle,
+      input.xAuthorName,
+      input.xTweetId,
+      input.xMediaUrls,
+    ]
+  );
+
+  if (!row) {
+    throw new Error('Failed to create distillation');
+  }
+
+  return mapDistillationRow(row);
+}

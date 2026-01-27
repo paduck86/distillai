@@ -27,7 +27,7 @@ export interface Folder {
 }
 
 // 소스 유형
-export type SourceType = 'youtube' | 'audio' | 'video' | 'url' | 'recording' | 'pdf' | 'website' | 'text';
+export type SourceType = 'youtube' | 'audio' | 'video' | 'url' | 'recording' | 'pdf' | 'website' | 'text' | 'note' | 'x_thread' | 'clipboard';
 
 export interface Distillation {
   id: string;
@@ -55,6 +55,13 @@ export interface Distillation {
   aiConfidence: number | null;
   aiReasoning: string | null;
   categoryConfirmed: boolean;
+  // 사용자 노트
+  userNotes: string | null;
+  // X (Twitter) 관련 필드
+  xAuthorHandle: string | null;
+  xAuthorName: string | null;
+  xTweetId: string | null;
+  xMediaUrls: string[];
 }
 
 export interface Category {
@@ -301,6 +308,21 @@ export class ApiService {
   // Import from text
   createFromText(text: string, title?: string, categoryId?: string): Observable<ApiResponse<Lecture>> {
     return this.request('POST', '/lectures/text', { text, title, categoryId });
+  }
+
+  // Create blank note
+  createNote(title: string, categoryId?: string): Observable<ApiResponse<Lecture>> {
+    return this.request('POST', '/lectures/note', { title, categoryId });
+  }
+
+  // Create from clipboard content
+  createFromClipboard(text: string, title?: string, categoryId?: string): Observable<ApiResponse<Lecture>> {
+    return this.request('POST', '/lectures/clipboard', { text, title, categoryId });
+  }
+
+  // Create from X (Twitter) URL
+  createFromX(url: string, categoryId?: string): Observable<ApiResponse<Lecture>> {
+    return this.request('POST', '/lectures/x', { url, categoryId });
   }
 
   // Upload file with progress tracking

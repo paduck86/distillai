@@ -43,7 +43,7 @@ const upload = multer({
 });
 
 // Validation schemas
-const sourceTypeEnum = z.enum(['youtube', 'audio', 'video', 'url', 'recording', 'pdf', 'website', 'text']);
+const sourceTypeEnum = z.enum(['youtube', 'audio', 'video', 'url', 'recording', 'pdf', 'website', 'text', 'note', 'x_thread', 'clipboard']);
 
 const createLectureSchema = z.object({
   title: z.string().min(1).max(200),
@@ -93,6 +93,15 @@ router.post('/url', lectureController.createFromUrl);
 
 // Text import
 router.post('/text', lectureController.createFromText);
+
+// Empty note creation
+router.post('/note', lectureController.createNote);
+
+// Clipboard capture
+router.post('/clipboard', lectureController.createFromClipboard);
+
+// X (Twitter) import
+router.post('/x', lectureController.createFromX);
 
 // File upload (creates new distillation + uploads file)
 router.post('/upload', upload.single('file'), lectureController.uploadFile);

@@ -6,6 +6,7 @@ import type { SupportedLanguage } from '../services/gemini.service.js';
 import * as categoryService from '../services/category.service.js';
 import * as youtubeService from '../services/youtube.service.js';
 import * as pdfService from '../services/pdf.service.js';
+import * as xService from '../services/x.service.js';
 import type { CreateLecture, UpdateLecture } from '../types/index.js';
 import { ValidationError, AppError } from '../middleware/error.middleware.js';
 
@@ -558,6 +559,142 @@ export async function getUncategorizedLectures(req: Request, res: Response, next
         total: result.total,
       },
     });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * POST /api/lectures/note
+ * 빈 노트 생성
+ */
+export async function createNote(req: Request, res: Response, next: NextFunction) {
+  try {
+    const userId = req.user!.id;
+    const { title, content, categoryId } = req.body;
+
+    // 기본 제목
+    const noteTitle = title?.trim() || `노트 ${new Date().toLocaleDateString('ko-KR')}`;
+
+    // 노트 생성
+    const lecture = await lectureService.createDistillation(userId, {
+      title: noteTitle,
+      sourceType: 'note',
+      categoryId,
+    });
+
+    // 내용이 있으면 userNotes에 저장
+    if (content?.trim()) {
+      await lectureService.updateUserNotes(userId, lecture.id, content.trim());
+    }
+
+    // 노트는 바로 crystallized 상태로
+    await lectureService.updateStatus(userId, lecture.id, 'crystallized');
+
+    const updatedLecture = await lectureService.getLecture(userId, lecture.id);
+    res.status(201).json({ data: updatedLecture });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * POST /api/lectures/clipboard
+ * 클립보드에서 콘텐츠 캡처
+ */
+export async function createFromClipboard(req: Request, res: Response, next: NextFunction) {
+  try {
+    const userId = req.user!.id;
+    const { content, title, categoryId } = req.body;
+
+    if (!content || typeof content !== 'string') {
+      throw new ValidationError('Content is required');
+    }
+
+    const trimmedContent = content.trim();
+    if (trimmedContent.length < 10) {
+      throw new ValidationError('Content must be at least 10 characters');
+    }
+
+    // URL인지 확인
+    const isUrl = /^https?:\/\//i.test(trimmedContent);
+
+    // 제목 결정
+    let clipTitle: string = title?.trim() || '';
+    if (!clipTitle) {
+      if (isUrl) {
+        try {
+          clipTitle = new URL(trimmedContent).hostname;
+        } catch {
+          clipTitle = 'URL 클립';
+        }
+      } else {
+        // 텍스트의 첫 줄 또는 50자를 제목으로
+        const firstLine = trimmedContent.split('\n')[0] || '';
+        clipTitle = firstLine.slice(0, 50);
+        if (clipTitle.length < firstLine.length) {
+          clipTitle += '...';
+        }
+      }
+    }
+
+    // Distillation 생성
+    const lecture = await lectureService.createDistillationWithText(userId, {
+      title: clipTitle,
+      sourceType: 'clipboard',
+      categoryId,
+      text: trimmedContent,
+    });
+
+    res.status(201).json({ data: lecture });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * POST /api/lectures/x
+ * X (Twitter) URL에서 콘텐츠 가져오기
+ */
+export async function createFromX(req: Request, res: Response, next: NextFunction) {
+  try {
+    const userId = req.user!.id;
+    const { url, categoryId } = req.body;
+
+    if (!url || typeof url !== 'string') {
+      throw new ValidationError('X URL is required');
+    }
+
+    // X URL 유효성 검사
+    const tweetId = xService.extractTweetId(url);
+    if (!tweetId) {
+      throw new ValidationError('Invalid X (Twitter) URL');
+    }
+
+    // X 콘텐츠 가져오기
+    console.log(`Fetching X content for tweet: ${tweetId}`);
+    const xContent = await xService.fetchXContent(url);
+
+    // 제목 생성 (작성자 + 콘텐츠 미리보기)
+    const title = `@${xContent.authorHandle}: ${xContent.content.slice(0, 50)}${xContent.content.length > 50 ? '...' : ''}`;
+
+    // 요약용 텍스트 포맷
+    const formattedText = xService.formatXContentForSummary(xContent);
+
+    // Distillation 생성
+    const lecture = await lectureService.createDistillationWithXContent(userId, {
+      title,
+      sourceType: 'x_thread',
+      sourceUrl: url,
+      categoryId,
+      text: formattedText,
+      xAuthorHandle: xContent.authorHandle,
+      xAuthorName: xContent.authorName,
+      xTweetId: xContent.tweetId,
+      xMediaUrls: xContent.mediaUrls,
+    });
+
+    res.status(201).json({ data: lecture });
   } catch (error) {
     next(error);
   }

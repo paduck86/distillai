@@ -255,6 +255,120 @@ import { SidebarComponent } from './components/sidebar.component';
               </div>
             }
 
+            <!-- X (Twitter) Tab -->
+            @if (selectedImportTab() === 'x') {
+              <div class="space-y-4">
+                <div class="relative">
+                  <input
+                    [(ngModel)]="xUrl"
+                    (keyup.enter)="submitXUrl()"
+                    type="url"
+                    placeholder="https://x.com/user/status/123..."
+                    class="w-full px-4 py-4 rounded-xl text-base border-2 transition-all outline-none"
+                    [class]="theme.isDark()
+                      ? 'bg-zinc-900 border-zinc-700 focus:border-cyan-500 text-white placeholder-zinc-500'
+                      : 'bg-white border-zinc-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 text-zinc-900 placeholder-zinc-400 shadow-sm'" />
+                  @if (xUrl()) {
+                    <button
+                      (click)="submitXUrl()"
+                      [disabled]="xLoading()"
+                      class="absolute right-2 top-1/2 -translate-y-1/2 px-4 py-2 rounded-lg font-medium transition-all"
+                      [class]="theme.isDark()
+                        ? 'bg-cyan-500 hover:bg-cyan-400 text-zinc-900'
+                        : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-md hover:shadow-lg'">
+                      @if (xLoading()) {
+                        <i class="pi pi-spin pi-spinner"></i>
+                      } @else {
+                        가져오기
+                      }
+                    </button>
+                  }
+                </div>
+                <p class="text-xs opacity-50">X(Twitter) 트윗 또는 스레드 URL을 입력하면 내용을 저장합니다</p>
+                @if (xError()) {
+                  <p class="text-sm text-red-500">{{ xError() }}</p>
+                }
+              </div>
+            }
+
+            <!-- Note Tab (빈 노트 생성) -->
+            @if (selectedImportTab() === 'note') {
+              <div class="space-y-4">
+                <div class="relative">
+                  <input
+                    [(ngModel)]="noteTitle"
+                    (keyup.enter)="submitNote()"
+                    type="text"
+                    placeholder="노트 제목을 입력하세요..."
+                    class="w-full px-4 py-4 rounded-xl text-base border-2 transition-all outline-none"
+                    [class]="theme.isDark()
+                      ? 'bg-zinc-900 border-zinc-700 focus:border-cyan-500 text-white placeholder-zinc-500'
+                      : 'bg-white border-zinc-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 text-zinc-900 placeholder-zinc-400 shadow-sm'" />
+                </div>
+                <div class="flex items-center justify-between">
+                  <p class="text-xs opacity-50">빈 노트를 만들고 자유롭게 작성하세요</p>
+                  <button
+                    (click)="submitNote()"
+                    [disabled]="!noteTitle() || noteLoading()"
+                    class="px-5 py-2.5 rounded-lg font-medium transition-all disabled:opacity-50"
+                    [class]="theme.isDark()
+                      ? 'bg-cyan-500 hover:bg-cyan-400 text-zinc-900'
+                      : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-md hover:shadow-lg'">
+                    @if (noteLoading()) {
+                      <i class="pi pi-spin pi-spinner mr-2"></i>
+                    }
+                    만들기
+                  </button>
+                </div>
+              </div>
+            }
+
+            <!-- Clipboard Tab (붙여넣기) -->
+            @if (selectedImportTab() === 'clipboard') {
+              <div class="space-y-4">
+                <div class="relative">
+                  <input
+                    [(ngModel)]="clipboardTitle"
+                    type="text"
+                    placeholder="제목 (선택사항)"
+                    class="w-full px-4 py-3 rounded-xl text-base border-2 transition-all outline-none mb-3"
+                    [class]="theme.isDark()
+                      ? 'bg-zinc-900 border-zinc-700 focus:border-cyan-500 text-white placeholder-zinc-500'
+                      : 'bg-white border-zinc-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 text-zinc-900 placeholder-zinc-400 shadow-sm'" />
+                </div>
+                <textarea
+                  [(ngModel)]="clipboardContent"
+                  (paste)="onClipboardPaste($event)"
+                  placeholder="여기에 텍스트를 붙여넣으세요 (Ctrl+V / Cmd+V)..."
+                  rows="6"
+                  class="w-full px-4 py-4 rounded-xl text-base border-2 transition-all outline-none resize-none"
+                  [class]="theme.isDark()
+                    ? 'bg-zinc-900 border-zinc-700 focus:border-cyan-500 text-white placeholder-zinc-500'
+                    : 'bg-white border-zinc-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 text-zinc-900 placeholder-zinc-400 shadow-sm'">
+                </textarea>
+                <div class="flex items-center justify-between">
+                  <span class="text-sm opacity-50">
+                    {{ clipboardContent().length }}자
+                  </span>
+                  <button
+                    (click)="submitClipboard()"
+                    [disabled]="!clipboardContent() || clipboardLoading()"
+                    class="px-5 py-2.5 rounded-lg font-medium transition-all disabled:opacity-50"
+                    [class]="theme.isDark()
+                      ? 'bg-cyan-500 hover:bg-cyan-400 text-zinc-900'
+                      : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-md hover:shadow-lg'">
+                    @if (clipboardLoading()) {
+                      <i class="pi pi-spin pi-spinner mr-2"></i>
+                    }
+                    저장하기
+                  </button>
+                </div>
+                @if (clipboardError()) {
+                  <p class="text-sm text-red-500">{{ clipboardError() }}</p>
+                }
+              </div>
+            }
+
             <!-- Website Tab -->
             @if (selectedImportTab() === 'website') {
               <div class="space-y-4">
@@ -970,9 +1084,12 @@ export class DashboardComponent implements OnInit {
   // Import Tabs
   importTabs = [
     { id: 'youtube', label: '유튜브', icon: 'pi-youtube', color: '#dc2626' },
+    { id: 'x', label: 'X (트위터)', icon: 'pi-twitter', color: '#000000' },
+    { id: 'note', label: '빈 노트', icon: 'pi-pen-to-square', color: '#a855f7' },
+    { id: 'clipboard', label: '붙여넣기', icon: 'pi-clipboard', color: '#ec4899' },
     { id: 'pdf', label: 'PDF', icon: 'pi-file-pdf', color: '#f97316' },
     { id: 'website', label: '웹사이트', icon: 'pi-globe', color: '#3b82f6' },
-    { id: 'file', label: '영상 / 음성 파일', icon: 'pi-file', color: '#8b5cf6' },
+    { id: 'file', label: '영상 / 음성', icon: 'pi-file', color: '#8b5cf6' },
     { id: 'recording', label: '실시간 녹음', icon: 'pi-microphone', color: '#06b6d4' },
     { id: 'text', label: '텍스트', icon: 'pi-align-left', color: '#10b981' },
   ];
@@ -1011,6 +1128,21 @@ export class DashboardComponent implements OnInit {
   textError = signal('');
   textLoading = signal(false);
 
+  // Note
+  noteTitle = signal('');
+  noteLoading = signal(false);
+
+  // Clipboard
+  clipboardContent = signal('');
+  clipboardTitle = signal('');
+  clipboardError = signal('');
+  clipboardLoading = signal(false);
+
+  // X (Twitter)
+  xUrl = signal('');
+  xError = signal('');
+  xLoading = signal(false);
+
   // Delete
   deleteTarget = signal<Distillation | null>(null);
   deleting = signal(false);
@@ -1043,6 +1175,9 @@ export class DashboardComponent implements OnInit {
   typeFilterOptions = [
     { label: '전체', value: null, icon: 'pi-list', color: '#71717a' },
     { label: '유튜브', value: 'youtube' as SourceType, icon: 'pi-youtube', color: '#dc2626' },
+    { label: 'X (트위터)', value: 'x_thread' as SourceType, icon: 'pi-twitter', color: '#000000' },
+    { label: '노트', value: 'note' as SourceType, icon: 'pi-pen-to-square', color: '#a855f7' },
+    { label: '클립보드', value: 'clipboard' as SourceType, icon: 'pi-clipboard', color: '#ec4899' },
     { label: 'PDF', value: 'pdf' as SourceType, icon: 'pi-file-pdf', color: '#f97316' },
     { label: '웹사이트', value: 'url' as SourceType, icon: 'pi-link', color: '#3b82f6' },
     { label: '음성 파일', value: 'audio' as SourceType, icon: 'pi-volume-up', color: '#22c55e' },
@@ -1083,21 +1218,24 @@ export class DashboardComponent implements OnInit {
 
   getSourceTypeLabel(type: SourceType | undefined): string {
     const map: Record<string, string> = {
-      youtube: '유튜브', audio: '음성', video: '영상', url: '웹', recording: '녹음', pdf: 'PDF', website: '웹', text: '텍스트'
+      youtube: '유튜브', audio: '음성', video: '영상', url: '웹', recording: '녹음', pdf: 'PDF', website: '웹', text: '텍스트',
+      note: '노트', x_thread: 'X', clipboard: '클립'
     };
     return map[type || ''] || '녹음';
   }
 
   getSourceTypeIcon(type: SourceType | undefined): string {
     const map: Record<string, string> = {
-      youtube: 'pi-youtube', audio: 'pi-volume-up', video: 'pi-video', url: 'pi-link', recording: 'pi-microphone', pdf: 'pi-file-pdf', website: 'pi-globe', text: 'pi-align-left'
+      youtube: 'pi-youtube', audio: 'pi-volume-up', video: 'pi-video', url: 'pi-link', recording: 'pi-microphone', pdf: 'pi-file-pdf', website: 'pi-globe', text: 'pi-align-left',
+      note: 'pi-pen-to-square', x_thread: 'pi-twitter', clipboard: 'pi-clipboard'
     };
     return map[type || ''] || 'pi-microphone';
   }
 
   getSourceTypeColor(type: SourceType | undefined): string {
     const map: Record<string, string> = {
-      youtube: '#dc2626', audio: '#22c55e', video: '#8b5cf6', url: '#3b82f6', recording: '#06b6d4', pdf: '#f97316', website: '#3b82f6', text: '#10b981'
+      youtube: '#dc2626', audio: '#22c55e', video: '#8b5cf6', url: '#3b82f6', recording: '#06b6d4', pdf: '#f97316', website: '#3b82f6', text: '#10b981',
+      note: '#a855f7', x_thread: '#000000', clipboard: '#ec4899'
     };
     return map[type || ''] || '#06b6d4';
   }
@@ -1119,6 +1257,8 @@ export class DashboardComponent implements OnInit {
     this.youtubeError.set('');
     this.urlError.set('');
     this.textError.set('');
+    this.xError.set('');
+    this.clipboardError.set('');
   }
 
   onDragOver(event: DragEvent) {
@@ -1347,6 +1487,76 @@ export class DashboardComponent implements OnInit {
       error: (err) => {
         this.textError.set(err.error?.message || '텍스트 처리 실패');
         this.textLoading.set(false);
+      }
+    });
+  }
+
+  // X (Twitter) submit
+  submitXUrl() {
+    const url = this.xUrl().trim();
+    if (!url) return;
+    if (!/^(https?:\/\/)?(www\.)?(twitter\.com|x\.com)\/\w+\/status\/\d+/.test(url)) {
+      this.xError.set('올바른 X(Twitter) URL을 입력해주세요.');
+      return;
+    }
+    this.xLoading.set(true); this.xError.set('');
+    const categoryId = this.folderState.selectedCategoryId() || undefined;
+    this.api.createFromX(url, categoryId).subscribe({
+      next: (res) => {
+        this.xLoading.set(false);
+        this.xUrl.set('');
+        this.router.navigate(['/lecture', res.data.id]);
+      },
+      error: (err) => {
+        this.xError.set(err.error?.message || 'X 콘텐츠 가져오기 실패');
+        this.xLoading.set(false);
+      }
+    });
+  }
+
+  // Note submit (빈 노트 생성)
+  submitNote() {
+    const title = this.noteTitle().trim();
+    if (!title) return;
+    this.noteLoading.set(true);
+    const categoryId = this.folderState.selectedCategoryId() || undefined;
+    this.api.createNote(title, categoryId).subscribe({
+      next: (res) => {
+        this.noteLoading.set(false);
+        this.noteTitle.set('');
+        this.router.navigate(['/lecture', res.data.id]);
+      },
+      error: () => {
+        this.noteLoading.set(false);
+      }
+    });
+  }
+
+  // Clipboard paste event
+  onClipboardPaste(event: ClipboardEvent) {
+    const text = event.clipboardData?.getData('text');
+    if (text) {
+      this.clipboardContent.set(text);
+    }
+  }
+
+  // Clipboard submit
+  submitClipboard() {
+    const content = this.clipboardContent().trim();
+    if (!content) return;
+    this.clipboardLoading.set(true); this.clipboardError.set('');
+    const title = this.clipboardTitle().trim() || undefined;
+    const categoryId = this.folderState.selectedCategoryId() || undefined;
+    this.api.createFromClipboard(content, title, categoryId).subscribe({
+      next: (res) => {
+        this.clipboardLoading.set(false);
+        this.clipboardContent.set('');
+        this.clipboardTitle.set('');
+        this.router.navigate(['/lecture', res.data.id]);
+      },
+      error: (err) => {
+        this.clipboardError.set(err.error?.message || '저장 실패');
+        this.clipboardLoading.set(false);
       }
     });
   }
