@@ -28,7 +28,10 @@ export type BlockType =
   // Distillai-specific blocks
   | 'timestamp'   // 🎯 타임스탬프 (오디오 연동)
   | 'ai_summary'  // 🎯 AI 요약 블록
-  | 'embed';      // 임베드 (YouTube, 이미지)
+  | 'embed'       // 임베드 (YouTube, 링크)
+  // Media blocks
+  | 'image'       // 🖼️ 이미지 블록
+  | 'table';      // 📊 테이블 블록
 
 // ============================================
 // Block Properties
@@ -61,13 +64,25 @@ export interface BlockProperties {
   embedUrl?: string;
   embedType?: 'youtube' | 'image' | 'link';
 
-  // Text formatting
+  // Text formatting (inline)
   bold?: boolean;
   italic?: boolean;
   underline?: boolean;
   strikethrough?: boolean;
   code?: boolean;
   link?: string;
+  highlight?: string;  // Highlight color
+
+  // Image properties
+  imageUrl?: string;
+  imageCaption?: string;
+  imageWidth?: 'small' | 'medium' | 'large' | 'full';
+  imageAlign?: 'left' | 'center' | 'right';
+
+  // Table properties
+  tableData?: string[][];  // 2D array of cell contents
+  tableHeaders?: boolean;  // First row as header
+  tableColumnWidths?: number[];  // Column widths in pixels
 }
 
 // ============================================
@@ -206,10 +221,14 @@ export const SLASH_COMMANDS: SlashCommand[] = [
 
   // Media
   { id: 'timestamp', label: '타임스탬프', labelEn: 'Timestamp', description: '오디오 위치 마커', descriptionEn: 'Audio position marker', icon: 'pi-clock', category: 'media', blockType: 'timestamp' },
-  { id: 'embed', label: '임베드', labelEn: 'Embed', description: 'YouTube, 이미지 등 임베드', descriptionEn: 'Embed YouTube, images, etc.', icon: 'pi-image', category: 'media', blockType: 'embed' },
+  { id: 'embed', label: '임베드', labelEn: 'Embed', description: 'YouTube, 링크 등 임베드', descriptionEn: 'Embed YouTube, links, etc.', icon: 'pi-external-link', category: 'media', blockType: 'embed' },
+  { id: 'image', label: '이미지', labelEn: 'Image', description: '이미지 업로드 또는 URL 임베드', descriptionEn: 'Upload image or embed from URL', icon: 'pi-image', category: 'media', blockType: 'image' },
+  { id: 'table', label: '표', labelEn: 'Table', description: '간단한 표 만들기', descriptionEn: 'Create a simple table', icon: 'pi-table', category: 'basic', blockType: 'table' },
+  { id: 'record', label: '녹음 시작', labelEn: 'Start Recording', description: '이 페이지에 오디오 녹음 추가', descriptionEn: 'Add audio recording to this page', icon: 'pi-microphone', category: 'media', aiAction: 'record' },
 
   // Advanced
   { id: 'import', label: '가져오기', labelEn: 'Import', description: '외부 콘텐츠 가져오기', descriptionEn: 'Import external content', icon: 'pi-download', category: 'advanced', aiAction: 'import' },
+  { id: 'subpage', label: '하위 페이지', labelEn: 'Sub-page', description: '현재 페이지 아래에 새 페이지 생성', descriptionEn: 'Create new page under current page', icon: 'pi-file-plus', category: 'advanced', aiAction: 'subpage' },
 ];
 
 // ============================================
@@ -406,7 +425,35 @@ function blockToMarkdown(block: Block): string {
     case 'toggle':
       const collapsed = block.properties?.collapsed ? '▶' : '▼';
       return `${collapsed} ${block.content}`;
+    case 'image':
+      const imgUrl = block.properties?.imageUrl || '';
+      const caption = block.properties?.imageCaption || '';
+      return caption ? `![${caption}](${imgUrl})` : `![](${imgUrl})`;
+    case 'table':
+      return tableToMarkdown(block.properties?.tableData || [['']]);
     default:
       return block.content;
   }
+}
+
+/**
+ * Convert table data to markdown format
+ */
+function tableToMarkdown(data: string[][]): string {
+  if (data.length === 0) return '';
+
+  const lines: string[] = [];
+
+  // Header row
+  if (data.length > 0) {
+    lines.push('| ' + data[0].join(' | ') + ' |');
+    lines.push('| ' + data[0].map(() => '---').join(' | ') + ' |');
+  }
+
+  // Body rows
+  for (let i = 1; i < data.length; i++) {
+    lines.push('| ' + data[i].join(' | ') + ' |');
+  }
+
+  return lines.join('\n');
 }

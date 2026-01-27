@@ -5,7 +5,7 @@
  * 기존 lecture-detail을 대체하는 새로운 UI
  */
 
-import { Component, OnInit, OnDestroy, inject, signal, computed, ViewChild, ElementRef, AfterViewInit } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject, signal, computed, ViewChild, ViewChildren, QueryList, ElementRef, AfterViewInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
@@ -14,11 +14,19 @@ import { ApiService, Distillation, Block } from '../../core/services/api.service
 import { ThemeService } from '../../core/services/theme.service';
 import { AudioService } from '../../core/services/audio.service';
 import { FolderStateService } from '../../core/services/folder-state.service';
+import { PageStateService } from '../../core/services/page-state.service';
 import { markdownToBlocks } from '../../core/types/block.types';
 
 import { PageHeaderComponent } from './components/page-header.component';
 import { BlockRendererComponent } from './components/block-renderer.component';
 import { SlashCommandComponent } from './components/slash-command.component';
+import { InPageRecorderComponent, RecordingResult } from './components/in-page-recorder.component';
+import { RecordingBarComponent } from './components/recording-bar.component';
+import { FormattingToolbarComponent } from './components/formatting-toolbar.component';
+import { RecorderService } from '../../core/services/recorder.service';
+import { SidebarComponent } from '../dashboard/components/sidebar.component';
+import { SupabaseService } from '../../core/services/supabase.service';
+import { SelectionService } from '../../core/services/selection.service';
 
 @Component({
   selector: 'app-page',
@@ -30,32 +38,117 @@ import { SlashCommandComponent } from './components/slash-command.component';
     PageHeaderComponent,
     BlockRendererComponent,
     SlashCommandComponent,
+    InPageRecorderComponent,
+    RecordingBarComponent,
+    SidebarComponent,
+    FormattingToolbarComponent,
   ],
   template: `
-    <div class="page-container min-h-screen" [class]="theme.isDark() ? 'bg-zinc-900' : 'bg-white'">
-      <!-- Loading State -->
-      @if (loading()) {
-        <div class="flex items-center justify-center h-screen">
-          <div class="animate-spin w-8 h-8 border-2 border-cyan-500 border-t-transparent rounded-full"></div>
+    <div class="page-layout flex min-h-screen" [class]="theme.isDark() ? 'bg-zinc-900' : 'bg-white'">
+      <!-- Sidebar -->
+      <div
+        class="sidebar-wrapper shrink-0 h-screen sticky top-0 transition-all duration-300 ease-in-out z-30"
+        [class]="sidebarCollapsed() ? 'w-0 overflow-hidden' : 'w-64'">
+        <app-sidebar
+          (pageSelected)="onSidebarPageSelected($event)"
+          (createPageRequested)="onSidebarCreatePage($event)" />
+      </div>
+
+      <!-- Sidebar Toggle Button -->
+      <button
+        (click)="toggleSidebar()"
+        class="fixed top-4 z-40 w-8 h-8 rounded-lg flex items-center justify-center
+               transition-all duration-300 cursor-pointer shadow-md
+               focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
+        [style.left.px]="sidebarCollapsed() ? 16 : 272"
+        [class]="theme.isDark()
+          ? 'bg-zinc-800 hover:bg-zinc-700 text-zinc-400 border border-zinc-700'
+          : 'bg-white hover:bg-zinc-100 text-zinc-600 border border-zinc-200'"
+        [title]="sidebarCollapsed() ? '사이드바 열기' : '사이드바 닫기'">
+        <i class="pi text-xs transition-transform duration-300"
+           [class]="sidebarCollapsed() ? 'pi-chevron-right' : 'pi-chevron-left'"></i>
+      </button>
+
+      <!-- Main Content Area -->
+      <div class="page-container flex-1 min-w-0">
+        <!-- Loading State with Skeleton -->
+        @if (loading()) {
+        <div class="max-w-4xl mx-auto px-4 md:px-8 lg:px-16 py-12 animate-pulse">
+          <!-- Skeleton: Icon + Title -->
+          <div class="flex items-center gap-4 mb-8">
+            <div class="w-16 h-16 rounded-xl" [class]="theme.isDark() ? 'bg-zinc-800' : 'bg-zinc-200'"></div>
+            <div class="flex-1">
+              <div class="h-8 rounded-lg w-2/3 mb-2" [class]="theme.isDark() ? 'bg-zinc-800' : 'bg-zinc-200'"></div>
+              <div class="h-4 rounded w-1/3" [class]="theme.isDark() ? 'bg-zinc-800' : 'bg-zinc-200'"></div>
+            </div>
+          </div>
+          <!-- Skeleton: Blocks -->
+          <div class="space-y-4">
+            @for (i of [1, 2, 3, 4, 5]; track i) {
+              <div class="h-6 rounded w-full" [style.width.%]="85 - i * 10"
+                   [class]="theme.isDark() ? 'bg-zinc-800' : 'bg-zinc-200'"></div>
+            }
+          </div>
         </div>
       }
 
       <!-- Error State -->
       @if (error()) {
-        <div class="flex flex-col items-center justify-center h-screen gap-4">
-          <i class="pi pi-exclamation-circle text-4xl text-red-500"></i>
-          <p class="text-red-500">{{ error() }}</p>
-          <button
-            (click)="goBack()"
-            class="px-4 py-2 bg-zinc-700 text-white rounded-lg hover:bg-zinc-600 transition-colors">
-            <i class="pi pi-arrow-left mr-2"></i>
-            돌아가기
-          </button>
+        <div class="flex flex-col items-center justify-center h-screen gap-6 px-4">
+          <div class="w-20 h-20 rounded-2xl flex items-center justify-center"
+               [class]="theme.isDark() ? 'bg-red-500/10' : 'bg-red-50'">
+            <i class="pi pi-exclamation-triangle text-4xl text-red-500"></i>
+          </div>
+          <div class="text-center max-w-md">
+            <h2 class="text-xl font-semibold mb-2">문제가 발생했습니다</h2>
+            <p class="mb-6" [class]="theme.isDark() ? 'text-zinc-400' : 'text-zinc-600'">{{ error() }}</p>
+          </div>
+          <div class="flex items-center gap-3">
+            <button
+              (click)="retryLoad()"
+              class="min-w-[120px] h-11 px-5 rounded-xl font-medium transition-colors
+                     bg-cyan-500 hover:bg-cyan-600 text-white cursor-pointer">
+              <i class="pi pi-refresh mr-2"></i>
+              다시 시도
+            </button>
+            <button
+              (click)="goBack()"
+              class="min-w-[120px] h-11 px-5 rounded-xl font-medium transition-colors cursor-pointer"
+              [class]="theme.isDark()
+                ? 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300'
+                : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-700'">
+              <i class="pi pi-arrow-left mr-2"></i>
+              돌아가기
+            </button>
+          </div>
         </div>
       }
 
       <!-- Main Content -->
       @if (distillation() && !loading()) {
+        <!-- Save Status Indicator -->
+        <div class="fixed top-4 right-4 z-40 flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs transition-all"
+             [class]="getSaveStatusClasses()">
+          @switch (saveStatus()) {
+            @case ('saving') {
+              <i class="pi pi-spinner pi-spin text-xs"></i>
+              <span>저장 중...</span>
+            }
+            @case ('saved') {
+              <i class="pi pi-check text-xs"></i>
+              <span>저장됨</span>
+            }
+            @case ('unsaved') {
+              <i class="pi pi-circle-fill text-xs text-amber-500"></i>
+              <span>수정됨</span>
+            }
+            @case ('error') {
+              <i class="pi pi-exclamation-triangle text-xs text-red-500"></i>
+              <span>저장 실패</span>
+            }
+          }
+        </div>
+
         <div class="page-content max-w-4xl mx-auto">
           <!-- Cover Image -->
           @if (distillation()?.pageCover) {
@@ -82,44 +175,69 @@ import { SlashCommandComponent } from './components/slash-command.component';
             (addCover)="onAddCover()" />
 
           <!-- Blocks -->
-          <div class="blocks-container px-16 py-8">
+          <div class="blocks-container px-4 md:px-8 lg:px-16 py-6">
             @if (blocks().length === 0) {
-              <!-- Empty State -->
-              <div class="empty-state py-12 text-center opacity-50">
-                <p class="mb-4">아직 콘텐츠가 없습니다</p>
-                <p class="text-sm">/ 를 입력하여 블록을 추가하세요</p>
+              <!-- Empty State - Auto create first block and show hint -->
+              <div class="empty-state-hint text-center py-8"
+                   [class]="theme.isDark() ? 'text-zinc-500' : 'text-zinc-400'">
+                <p class="text-sm mb-2">
+                  <kbd class="px-1.5 py-0.5 rounded font-mono text-xs"
+                       [class]="theme.isDark() ? 'bg-zinc-800' : 'bg-zinc-100'">/</kbd>
+                  를 입력하여 녹음, 요약 등 기능을 사용하세요
+                </p>
+                <div class="flex items-center justify-center gap-4 text-xs mt-4">
+                  <button (click)="startRecording()" class="flex items-center gap-1.5 hover:text-red-400 transition-colors cursor-pointer">
+                    <i class="pi pi-microphone"></i> 녹음
+                  </button>
+                  <button (click)="showSlashCommand.set(true)" class="flex items-center gap-1.5 hover:text-cyan-400 transition-colors cursor-pointer">
+                    <i class="pi pi-sparkles"></i> AI 요약
+                  </button>
+                </div>
               </div>
-            } @else {
-              <!-- Block List -->
-              @for (block of blocks(); track block.id) {
-                <app-block-renderer
-                  [block]="block"
-                  [isEditing]="editingBlockId() === block.id"
-                  (edit)="onBlockEdit(block)"
-                  (update)="onBlockUpdate($event)"
-                  (delete)="onBlockDelete(block.id)"
-                  (duplicate)="onBlockDuplicate(block)"
-                  (addBlockAfter)="onAddBlockAfter(block.id)"
-                  (moveUp)="onMoveBlock(block.id, 'up')"
-                  (moveDown)="onMoveBlock(block.id, 'down')"
-                  (typeChange)="onBlockTypeChange($event)"
-                  (aiAction)="onAiAction($event)" />
-              }
+            }
+
+            <!-- Block List -->
+            @for (block of blocks(); track block.id; let i = $index) {
+              <app-block-renderer
+                #blockRef
+                [block]="block"
+                [isEditing]="editingBlockId() === block.id"
+                (edit)="onBlockEdit(block)"
+                (update)="onBlockUpdate($event)"
+                (delete)="onBlockDelete(block.id)"
+                (duplicate)="onBlockDuplicate(block)"
+                (addBlockAfter)="onAddBlockAfter(block.id)"
+                (showSlashMenu)="onShowSlashMenuAfterBlock($event)"
+                (moveUp)="onMoveBlock(block.id, 'up')"
+                (moveDown)="onMoveBlock(block.id, 'down')"
+                (typeChange)="onBlockTypeChange($event)"
+                (aiAction)="onAiAction($event)"
+                (splitBlock)="onSplitBlock($event)"
+                (mergeWithPrevious)="onMergeWithPrevious($event, i)"
+                (slashCommand)="onSlashCommandFromBlock($event)"
+                (focusBlock)="onFocusBlock($event, i)"
+                (dragStart)="onBlockDragStart($event)"
+                (dragEnd)="onBlockDragEnd($event)"
+                (dragover)="onBlockDragOver($event, i)"
+                (drop)="onBlockDrop($event, i)" />
             }
 
             <!-- Add Block Button -->
-            <div
-              class="add-block-row flex items-center gap-2 py-2 px-2 -ml-2 mt-4
-                     opacity-0 hover:opacity-100 transition-opacity cursor-pointer group"
+            <button
+              type="button"
+              class="add-block-row w-full flex items-center gap-2 py-3 px-2 -ml-2 mt-4 rounded-lg
+                     opacity-40 hover:opacity-100 transition-all cursor-pointer group text-left
+                     focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
+              [class]="theme.isDark() ? 'hover:bg-zinc-800/50' : 'hover:bg-zinc-50'"
               (click)="showSlashCommand.set(true)">
-              <div class="w-6 h-6 flex items-center justify-center rounded
-                          group-hover:bg-zinc-200 dark:group-hover:bg-zinc-700">
-                <i class="pi pi-plus text-sm opacity-50 group-hover:opacity-100"></i>
+              <div class="w-8 h-8 flex items-center justify-center rounded-lg transition-colors
+                          group-hover:bg-cyan-500/10">
+                <i class="pi pi-plus text-sm group-hover:text-cyan-500"></i>
               </div>
-              <span class="text-sm opacity-50 group-hover:opacity-100">
+              <span class="text-sm group-hover:text-cyan-500">
                 클릭하거나 / 를 입력하세요
               </span>
-            </div>
+            </button>
           </div>
 
           <!-- Slash Command Palette -->
@@ -127,22 +245,37 @@ import { SlashCommandComponent } from './components/slash-command.component';
             <app-slash-command
               [position]="slashCommandPosition()"
               (select)="onSlashCommandSelect($event)"
-              (close)="showSlashCommand.set(false)" />
+              (close)="onSlashCommandClose()" />
           }
+
+          <!-- Inline Formatting Toolbar (appears on text selection) -->
+          <app-formatting-toolbar
+            (formatApplied)="onFormatApplied()" />
         </div>
       }
 
-      <!-- Back to Dashboard Button -->
-      <button
-        (click)="goBack()"
-        class="fixed top-4 left-4 p-2 rounded-lg transition-all z-40
-               hover:bg-zinc-200 dark:hover:bg-zinc-700"
-        [class]="theme.isDark() ? 'text-zinc-400' : 'text-zinc-600'">
-        <i class="pi pi-arrow-left text-lg"></i>
-      </button>
+
+      <!-- Recording Bar (shown when recording) -->
+      @if (isRecording() && !showRecorderModal()) {
+        <app-recording-bar
+          [pageTitle]="pageTitle()"
+          [showMarkerButton]="true"
+          (stop)="onRecordingStop()"
+          (addMarker)="onAddRecordingMarker($event)" />
+      }
+
+      <!-- In-Page Recorder Modal -->
+      @if (showRecorderModal()) {
+        <app-in-page-recorder
+          [pageId]="distillation()!.id"
+          (close)="showRecorderModal.set(false)"
+          (recordingStarted)="onRecordingStarted()"
+          (processWithAIRequested)="onProcessWithAI($event)"
+          (saveWithoutAIRequested)="onSaveWithoutAI($event)" />
+      }
 
       <!-- Audio Player (Fixed Bottom) -->
-      @if (distillation()?.audioUrl) {
+      @if (distillation()?.audioUrl && !isRecording()) {
         <div class="audio-player-bar fixed bottom-0 left-0 right-0 z-50 py-3 px-6 border-t"
              [class]="theme.isDark()
                ? 'bg-zinc-900/95 backdrop-blur-sm border-zinc-800'
@@ -160,16 +293,16 @@ import { SlashCommandComponent } from './components/slash-command.component';
             <!-- Play/Pause Button -->
             <button
               (click)="audioService.togglePlay()"
-              class="w-10 h-10 rounded-full flex items-center justify-center transition-colors
-                     bg-cyan-500 hover:bg-cyan-600 text-white">
+              class="w-11 h-11 rounded-full flex items-center justify-center transition-colors cursor-pointer
+                     bg-cyan-500 hover:bg-cyan-600 text-white focus:ring-2 focus:ring-cyan-500/50 focus:outline-none">
               <i [class]="audioService.isPlaying() ? 'pi pi-pause' : 'pi pi-play'" class="text-sm"></i>
             </button>
 
             <!-- Skip Buttons -->
             <button
               (click)="audioService.skipBackward(10)"
-              class="w-8 h-8 rounded-full flex items-center justify-center transition-colors
-                     hover:bg-zinc-200 dark:hover:bg-zinc-700"
+              class="w-11 h-11 rounded-full flex items-center justify-center transition-colors cursor-pointer
+                     hover:bg-zinc-200 dark:hover:bg-zinc-700 focus:ring-2 focus:ring-zinc-400/50 focus:outline-none"
               [class]="theme.isDark() ? 'text-zinc-400' : 'text-zinc-600'">
               <i class="pi pi-replay text-sm"></i>
             </button>
@@ -182,7 +315,7 @@ import { SlashCommandComponent } from './components/slash-command.component';
               </span>
 
               <div
-                class="progress-bar flex-1 h-1.5 rounded-full cursor-pointer relative"
+                class="progress-bar flex-1 h-2 rounded-full cursor-pointer relative group"
                 [class]="theme.isDark() ? 'bg-zinc-700' : 'bg-zinc-200'"
                 (click)="onProgressClick($event)">
                 <div
@@ -190,8 +323,8 @@ import { SlashCommandComponent } from './components/slash-command.component';
                   [style.width.%]="audioService.progress()">
                 </div>
                 <div
-                  class="progress-handle absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-cyan-500
-                         opacity-0 hover:opacity-100 transition-opacity"
+                  class="progress-handle absolute top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-cyan-500
+                         shadow-md opacity-0 group-hover:opacity-100 transition-opacity -ml-2"
                   [style.left.%]="audioService.progress()">
                 </div>
               </div>
@@ -205,8 +338,8 @@ import { SlashCommandComponent } from './components/slash-command.component';
             <!-- Skip Forward -->
             <button
               (click)="audioService.skipForward(10)"
-              class="w-8 h-8 rounded-full flex items-center justify-center transition-colors
-                     hover:bg-zinc-200 dark:hover:bg-zinc-700"
+              class="w-11 h-11 rounded-full flex items-center justify-center transition-colors cursor-pointer
+                     hover:bg-zinc-200 dark:hover:bg-zinc-700 focus:ring-2 focus:ring-zinc-400/50 focus:outline-none"
               [class]="theme.isDark() ? 'text-zinc-400' : 'text-zinc-600'">
               <i class="pi pi-forward text-sm"></i>
             </button>
@@ -214,19 +347,32 @@ import { SlashCommandComponent } from './components/slash-command.component';
             <!-- Speed Control -->
             <button
               (click)="cyclePlaybackSpeed()"
-              class="px-2 py-1 rounded text-xs font-mono transition-colors
-                     hover:bg-zinc-200 dark:hover:bg-zinc-700"
+              class="min-w-[44px] h-11 px-3 rounded-lg text-xs font-mono transition-colors cursor-pointer
+                     hover:bg-zinc-200 dark:hover:bg-zinc-700 focus:ring-2 focus:ring-zinc-400/50 focus:outline-none"
               [class]="theme.isDark() ? 'text-zinc-400' : 'text-zinc-600'">
               {{ audioService.playbackRate() }}x
             </button>
           </div>
         </div>
       }
-    </div>
+      </div><!-- End .page-container -->
+    </div><!-- End .page-layout -->
   `,
   styles: [`
+    .page-layout {
+      min-height: 100vh;
+    }
+
     .page-container {
       transition: background-color 0.2s;
+    }
+
+    .sidebar-wrapper {
+      border-right: 1px solid rgba(0, 0, 0, 0.1);
+    }
+
+    :host-context(.dark) .sidebar-wrapper {
+      border-right-color: rgba(255, 255, 255, 0.1);
     }
 
     .cover-image {
@@ -252,10 +398,13 @@ export class PageComponent implements OnInit, OnDestroy, AfterViewInit {
   private route = inject(ActivatedRoute);
   private router = inject(Router);
   private folderState = inject(FolderStateService);
+  private pageState = inject(PageStateService);
+  private recorder = inject(RecorderService);
   theme = inject(ThemeService);
   audioService = inject(AudioService);
 
   @ViewChild('audioPlayer') audioPlayerRef?: ElementRef<HTMLAudioElement>;
+  @ViewChildren('blockRef') blockRefs!: QueryList<BlockRendererComponent>;
 
   // State
   loading = signal(true);
@@ -265,6 +414,24 @@ export class PageComponent implements OnInit, OnDestroy, AfterViewInit {
   editingBlockId = signal<string | null>(null);
   showSlashCommand = signal(false);
   slashCommandPosition = signal({ x: 0, y: 0 });
+  insertAfterBlockId = signal<string | null>(null); // Track which block to insert after when using + button
+
+  // Sidebar state
+  sidebarCollapsed = signal(false);
+
+  // Drag and drop state
+  draggingBlockId = signal<string | null>(null);
+  dragOverIndex = signal<number | null>(null);
+
+  // Auto-save state
+  saveStatus = signal<'saved' | 'saving' | 'unsaved' | 'error'>('saved');
+  private saveTimeout: ReturnType<typeof setTimeout> | null = null;
+  private pendingChanges = signal(false);
+
+  // Recording state
+  showRecorderModal = signal(false);
+  isRecording = computed(() => this.recorder.state().isRecording);
+  recorderState = this.recorder.state;
 
   // Computed
   pageTitle = computed(() => this.distillation()?.title || 'Untitled');
@@ -272,11 +439,59 @@ export class PageComponent implements OnInit, OnDestroy, AfterViewInit {
   ngOnInit() {
     const id = this.route.snapshot.paramMap.get('id');
     if (id) {
-      this.loadPage(id);
+      this.loadPage(id).then(() => {
+        // Handle quick action query params from dashboard
+        this.handleQuickAction();
+      });
     } else {
       this.error.set('페이지 ID가 없습니다');
       this.loading.set(false);
     }
+  }
+
+  /**
+   * Handle query params for quick actions from dashboard
+   * ?action=youtube | pdf | record
+   */
+  private handleQuickAction() {
+    const action = this.route.snapshot.queryParamMap.get('action');
+    if (!action) return;
+
+    // Clear the query param after reading
+    this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: {},
+      replaceUrl: true
+    });
+
+    // Execute action after a short delay to ensure UI is ready
+    setTimeout(() => {
+      switch (action) {
+        case 'youtube':
+          this.showYouTubeImport();
+          break;
+        case 'pdf':
+          this.showPdfImport();
+          break;
+        case 'record':
+          this.startRecording();
+          break;
+      }
+    }, 100);
+  }
+
+  // Show YouTube import UI
+  private showYouTubeImport() {
+    // Open slash command with pre-selected youtube
+    this.showSlashCommand.set(true);
+    // TODO: Auto-focus on youtube option or show dedicated modal
+  }
+
+  // Show PDF import UI
+  private showPdfImport() {
+    // Open slash command with pre-selected pdf
+    this.showSlashCommand.set(true);
+    // TODO: Auto-focus on pdf option or show dedicated modal
   }
 
   ngAfterViewInit() {
@@ -306,21 +521,30 @@ export class PageComponent implements OnInit, OnDestroy, AfterViewInit {
         this.folderState.addRecentView(response.data.id, response.data.title);
 
         // Try to load blocks, or convert from markdown
+        let hasBlocks = false;
         try {
           const blocksResponse = await this.api.getBlocks(id).toPromise();
           if (blocksResponse?.data && blocksResponse.data.length > 0) {
             this.blocks.set(blocksResponse.data);
+            hasBlocks = true;
           } else if (response.data.summaryMd) {
             // Convert markdown to blocks for display
             const convertedBlocks = markdownToBlocks(response.data.summaryMd);
             this.blocks.set(convertedBlocks as Block[]);
+            hasBlocks = true;
           }
         } catch {
           // If blocks API fails, convert from markdown
           if (response.data.summaryMd) {
             const convertedBlocks = markdownToBlocks(response.data.summaryMd);
             this.blocks.set(convertedBlocks as Block[]);
+            hasBlocks = true;
           }
+        }
+
+        // If no blocks, create first empty text block (Notion-style)
+        if (!hasBlocks) {
+          this.createFirstBlockAndFocus(id);
         }
       }
     } catch (err) {
@@ -329,6 +553,34 @@ export class PageComponent implements OnInit, OnDestroy, AfterViewInit {
     } finally {
       this.loading.set(false);
     }
+  }
+
+  /**
+   * Create first text block and auto-focus for Notion-style editing
+   */
+  private createFirstBlockAndFocus(distillationId: string) {
+    const newBlock: Block = {
+      id: `block_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      distillationId,
+      parentId: null,
+      type: 'text',
+      content: '',
+      properties: {},
+      position: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    this.blocks.set([newBlock]);
+    this.editingBlockId.set(newBlock.id);
+
+    // Focus the first block after DOM renders
+    setTimeout(() => {
+      const blockRefs = this.blockRefs?.toArray();
+      if (blockRefs && blockRefs.length > 0) {
+        blockRefs[0].focus('start');
+      }
+    }, 100);
   }
 
   // Event Handlers
@@ -372,7 +624,8 @@ export class PageComponent implements OnInit, OnDestroy, AfterViewInit {
         ...currentBlocks.slice(index + 1),
       ]);
 
-      // TODO: API call to save
+      // Schedule auto-save
+      this.scheduleAutoSave();
     }
     this.editingBlockId.set(null);
   }
@@ -380,7 +633,8 @@ export class PageComponent implements OnInit, OnDestroy, AfterViewInit {
   onBlockDelete(blockId: string) {
     const currentBlocks = this.blocks();
     this.blocks.set(currentBlocks.filter(b => b.id !== blockId));
-    // TODO: API call to delete
+    // Schedule auto-save
+    this.scheduleAutoSave();
   }
 
   onBlockDuplicate(block: Block) {
@@ -451,6 +705,14 @@ export class PageComponent implements OnInit, OnDestroy, AfterViewInit {
       ...currentBlocks.slice(index + 1),
     ]);
     this.editingBlockId.set(newBlock.id);
+
+    // Focus the new block after DOM renders
+    setTimeout(() => {
+      const blockRefs = this.blockRefs?.toArray();
+      if (blockRefs && blockRefs[index + 1]) {
+        blockRefs[index + 1].focus('start');
+      }
+    }, 50);
   }
 
   onMoveBlock(blockId: string, direction: 'up' | 'down') {
@@ -469,7 +731,227 @@ export class PageComponent implements OnInit, OnDestroy, AfterViewInit {
     // TODO: API call to reorder
   }
 
-  onSlashCommandSelect(command: { type: string; blockType?: string }) {
+  // Split block at cursor position (Enter key)
+  onSplitBlock(event: { id: string; beforeContent: string; afterContent: string }) {
+    const currentBlocks = this.blocks();
+    const index = currentBlocks.findIndex(b => b.id === event.id);
+    if (index === -1) return;
+
+    // Update current block with content before cursor
+    const updatedBlock = { ...currentBlocks[index], content: event.beforeContent };
+
+    // Create new block with content after cursor
+    const newBlock: Block = {
+      id: `block_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      distillationId: this.distillation()!.id,
+      parentId: null,
+      type: 'text', // New block is always text
+      content: event.afterContent,
+      properties: {},
+      position: index + 1,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    this.blocks.set([
+      ...currentBlocks.slice(0, index),
+      updatedBlock,
+      newBlock,
+      ...currentBlocks.slice(index + 1),
+    ]);
+
+    // Focus the new block after DOM update
+    setTimeout(() => {
+      const blockRefs = this.blockRefs.toArray();
+      if (blockRefs[index + 1]) {
+        blockRefs[index + 1].focus('start');
+      }
+    }, 0);
+  }
+
+  // Merge with previous block (Backspace at start)
+  onMergeWithPrevious(event: { id: string; content: string }, currentIndex: number) {
+    if (currentIndex === 0) return; // Can't merge first block
+
+    const currentBlocks = this.blocks();
+    const prevBlock = currentBlocks[currentIndex - 1];
+    const currentBlock = currentBlocks[currentIndex];
+
+    // Merge content
+    const mergedContent = (prevBlock.content || '') + (event.content || '');
+    const cursorPosition = (prevBlock.content || '').length;
+
+    // Update previous block with merged content
+    const updatedPrevBlock = { ...prevBlock, content: mergedContent };
+
+    // Remove current block
+    this.blocks.set([
+      ...currentBlocks.slice(0, currentIndex - 1),
+      updatedPrevBlock,
+      ...currentBlocks.slice(currentIndex + 1),
+    ]);
+
+    // Focus previous block at the merge point
+    setTimeout(() => {
+      const blockRefs = this.blockRefs.toArray();
+      if (blockRefs[currentIndex - 1]) {
+        blockRefs[currentIndex - 1].focus('end');
+        // TODO: Set cursor position to cursorPosition
+      }
+    }, 0);
+  }
+
+  // Handle slash command from within a block
+  onSlashCommandFromBlock(event: { id: string; position: { x: number; y: number } }) {
+    this.slashCommandPosition.set(event.position);
+    this.showSlashCommand.set(true);
+    this.editingBlockId.set(event.id);
+    this.insertAfterBlockId.set(null); // Clear insert mode
+  }
+
+  // Handle + button click - show slash menu to insert after this block
+  onShowSlashMenuAfterBlock(event: { afterBlockId: string; position: { x: number; y: number } }) {
+    this.slashCommandPosition.set(event.position);
+    this.showSlashCommand.set(true);
+    this.insertAfterBlockId.set(event.afterBlockId);
+    this.editingBlockId.set(null); // Not editing existing block
+  }
+
+  // Focus next/previous block
+  onFocusBlock(event: { id: string; position?: 'start' | 'end' }, currentIndex: number) {
+    const currentBlocks = this.blocks();
+
+    // If position is 'end', we came from ArrowUp, go to previous block
+    if (event.position === 'end' && currentIndex > 0) {
+      setTimeout(() => {
+        const blockRefs = this.blockRefs.toArray();
+        if (blockRefs[currentIndex - 1]) {
+          blockRefs[currentIndex - 1].focus('end');
+        }
+      }, 0);
+    }
+    // If position is 'start', we came from ArrowDown, go to next block
+    else if (event.position === 'start' && currentIndex < currentBlocks.length - 1) {
+      setTimeout(() => {
+        const blockRefs = this.blockRefs.toArray();
+        if (blockRefs[currentIndex + 1]) {
+          blockRefs[currentIndex + 1].focus('start');
+        }
+      }, 0);
+    }
+  }
+
+  // ============ Drag & Drop Handlers ============
+
+  onBlockDragStart(event: { id: string; event: DragEvent }) {
+    this.draggingBlockId.set(event.id);
+  }
+
+  onBlockDragEnd(event: { id: string; event: DragEvent }) {
+    this.draggingBlockId.set(null);
+    this.dragOverIndex.set(null);
+  }
+
+  onBlockDragOver(event: Event, index: number) {
+    const dragEvent = event as DragEvent;
+    dragEvent.preventDefault();
+    dragEvent.dataTransfer!.dropEffect = 'move';
+    this.dragOverIndex.set(index);
+  }
+
+  onBlockDrop(event: Event, dropIndex: number) {
+    const dragEvent = event as DragEvent;
+    dragEvent.preventDefault();
+
+    const draggedId = this.draggingBlockId();
+    if (!draggedId) return;
+
+    const currentBlocks = this.blocks();
+    const draggedIndex = currentBlocks.findIndex(b => b.id === draggedId);
+    if (draggedIndex === -1 || draggedIndex === dropIndex) return;
+
+    // Reorder blocks
+    const newBlocks = [...currentBlocks];
+    const [draggedBlock] = newBlocks.splice(draggedIndex, 1);
+    const insertIndex = dropIndex > draggedIndex ? dropIndex - 1 : dropIndex;
+    newBlocks.splice(insertIndex, 0, draggedBlock);
+
+    // Update positions
+    newBlocks.forEach((block, i) => {
+      block.position = i;
+    });
+
+    this.blocks.set(newBlocks);
+    this.draggingBlockId.set(null);
+    this.dragOverIndex.set(null);
+
+    // TODO: API call to persist order
+  }
+
+  onSlashCommandSelect(command: { type: string; blockType?: string; aiAction?: string }) {
+    this.showSlashCommand.set(false);
+
+    // Handle special actions
+    if (command.aiAction === 'record') {
+      // Clear slash from current block if any
+      this.clearSlashFromEditingBlock();
+      this.startRecording();
+      return;
+    }
+
+    if (command.aiAction === 'subpage') {
+      this.clearSlashFromEditingBlock();
+      this.createSubPage();
+      return;
+    }
+
+    // Check if we should convert existing block or create new
+    const editingId = this.editingBlockId();
+    const currentBlocks = this.blocks();
+
+    if (editingId) {
+      const existingIndex = currentBlocks.findIndex(b => b.id === editingId);
+      if (existingIndex !== -1) {
+        const existingBlock = currentBlocks[existingIndex];
+        const content = existingBlock.content?.trim() || '';
+
+        // If block only has '/' or is empty, convert it to the new type
+        if (content === '/' || content === '') {
+          const updatedBlock = {
+            ...existingBlock,
+            type: (command.blockType || 'text') as Block['type'],
+            content: '',
+          };
+          this.blocks.set([
+            ...currentBlocks.slice(0, existingIndex),
+            updatedBlock,
+            ...currentBlocks.slice(existingIndex + 1),
+          ]);
+
+          // Focus the converted block
+          setTimeout(() => {
+            const blockRefs = this.blockRefs?.toArray();
+            if (blockRefs && blockRefs[existingIndex]) {
+              blockRefs[existingIndex].focus('start');
+            }
+          }, 50);
+          return;
+        }
+      }
+    }
+
+    // Check if we're inserting after a specific block (from + button)
+    const insertAfterId = this.insertAfterBlockId();
+    let insertIndex = currentBlocks.length;
+
+    if (insertAfterId) {
+      const afterIndex = currentBlocks.findIndex(b => b.id === insertAfterId);
+      if (afterIndex !== -1) {
+        insertIndex = afterIndex + 1;
+      }
+    }
+
+    // Create a new block
     const newBlock: Block = {
       id: `block_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       distillationId: this.distillation()!.id,
@@ -477,6 +959,158 @@ export class PageComponent implements OnInit, OnDestroy, AfterViewInit {
       type: (command.blockType || 'text') as Block['type'],
       content: '',
       properties: {},
+      position: insertIndex,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    // Insert at the correct position
+    this.blocks.set([
+      ...currentBlocks.slice(0, insertIndex),
+      newBlock,
+      ...currentBlocks.slice(insertIndex),
+    ]);
+    this.editingBlockId.set(newBlock.id);
+    this.insertAfterBlockId.set(null); // Clear insert mode
+
+    // Focus the new block after DOM renders
+    setTimeout(() => {
+      const blockRefs = this.blockRefs?.toArray();
+      if (blockRefs && blockRefs[insertIndex]) {
+        blockRefs[insertIndex].focus('start');
+      }
+    }, 50);
+  }
+
+  /**
+   * Clear '/' from the currently editing block
+   */
+  private clearSlashFromEditingBlock() {
+    const editingId = this.editingBlockId();
+    if (!editingId) return;
+
+    const currentBlocks = this.blocks();
+    const index = currentBlocks.findIndex(b => b.id === editingId);
+    if (index !== -1) {
+      const block = currentBlocks[index];
+      const content = block.content?.trim() || '';
+      if (content === '/') {
+        const updatedBlock = { ...block, content: '' };
+        this.blocks.set([
+          ...currentBlocks.slice(0, index),
+          updatedBlock,
+          ...currentBlocks.slice(index + 1),
+        ]);
+      }
+    }
+  }
+
+  /**
+   * Handle slash command close (Escape or click outside)
+   */
+  onSlashCommandClose() {
+    this.showSlashCommand.set(false);
+    this.insertAfterBlockId.set(null);
+  }
+
+  // Recording handler - show in-page recorder modal
+  startRecording() {
+    const current = this.distillation();
+    if (!current) return;
+
+    this.showRecorderModal.set(true);
+  }
+
+  // Add first text block for empty pages
+  addFirstBlock() {
+    const newBlock: Block = {
+      id: `block_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      distillationId: this.distillation()!.id,
+      parentId: null,
+      type: 'text',
+      content: '',
+      properties: {},
+      position: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    this.blocks.set([newBlock]);
+    this.editingBlockId.set(newBlock.id);
+
+    // Focus the block after DOM renders
+    setTimeout(() => {
+      const blockRefs = this.blockRefs?.toArray();
+      if (blockRefs && blockRefs.length > 0) {
+        blockRefs[0].focus('start');
+      }
+    }, 50);
+  }
+
+  // Recording events
+  onRecordingStarted() {
+    this.showRecorderModal.set(false);
+  }
+
+  onRecordingStop() {
+    // Recording stopped, show completion modal
+    const state = this.recorder.state();
+    if (state.audioBlob) {
+      this.showRecorderModal.set(true);
+    }
+  }
+
+  async onProcessWithAI(result: RecordingResult) {
+    const current = this.distillation();
+    if (!current) return;
+
+    try {
+      // Upload audio to this page
+      const durationSeconds = Math.round(result.durationMs / 1000);
+      await this.api.uploadAudio(current.id, result.audioBlob, durationSeconds);
+
+      // Start AI summarization
+      await this.api.summarizeLecture(current.id).toPromise();
+
+      // Reload page to show updated content
+      this.showRecorderModal.set(false);
+      this.recorder.reset();
+      await this.loadPage(current.id);
+
+    } catch (error) {
+      console.error('Failed to process recording:', error);
+    }
+  }
+
+  async onSaveWithoutAI(result: RecordingResult) {
+    const current = this.distillation();
+    if (!current) return;
+
+    try {
+      // Upload audio to this page without AI processing
+      const durationSeconds = Math.round(result.durationMs / 1000);
+      await this.api.uploadAudio(current.id, result.audioBlob, durationSeconds);
+
+      // Reload page
+      this.showRecorderModal.set(false);
+      this.recorder.reset();
+      await this.loadPage(current.id);
+
+    } catch (error) {
+      console.error('Failed to save recording:', error);
+    }
+  }
+
+  onAddRecordingMarker(timeMs: number) {
+    // Add a timestamp block at current position
+    const timeStr = this.formatTimestamp(timeMs);
+    const newBlock: Block = {
+      id: `block_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      distillationId: this.distillation()!.id,
+      parentId: null,
+      type: 'timestamp',
+      content: '',
+      properties: { timestamp: timeStr },
       position: this.blocks().length,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -484,11 +1118,84 @@ export class PageComponent implements OnInit, OnDestroy, AfterViewInit {
 
     this.blocks.set([...this.blocks(), newBlock]);
     this.editingBlockId.set(newBlock.id);
-    this.showSlashCommand.set(false);
+  }
+
+  private formatTimestamp(ms: number): string {
+    const totalSeconds = Math.floor(ms / 1000);
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+
+    if (hours > 0) {
+      return `${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+    }
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+  }
+
+  // Create sub-page under current page
+  private async createSubPage() {
+    const current = this.distillation();
+    if (!current) return;
+
+    try {
+      const result = await this.pageState.createPage({
+        title: '',
+        parentId: current.id,
+        sourceType: 'note',
+      });
+
+      if (result) {
+        // Navigate to the new sub-page
+        this.router.navigate(['/page', result.id]);
+      }
+    } catch (error) {
+      console.error('Failed to create sub-page:', error);
+    }
+  }
+
+  // Formatting toolbar handler
+  onFormatApplied() {
+    // Trigger auto-save when formatting is applied
+    this.scheduleAutoSave();
+  }
+
+  // Sidebar methods
+  toggleSidebar() {
+    this.sidebarCollapsed.set(!this.sidebarCollapsed());
+  }
+
+  onSidebarPageSelected(pageId: string) {
+    // Navigate to selected page
+    if (pageId !== this.distillation()?.id) {
+      this.router.navigate(['/page', pageId]);
+    }
+  }
+
+  async onSidebarCreatePage(parentId?: string) {
+    try {
+      const result = await this.pageState.createPage({
+        title: '',
+        parentId,
+        sourceType: 'note',
+      });
+      if (result) {
+        this.router.navigate(['/page', result.id]);
+      }
+    } catch (error) {
+      console.error('Failed to create page:', error);
+    }
   }
 
   goBack() {
     this.router.navigate(['/dashboard']);
+  }
+
+  retryLoad() {
+    const id = this.route.snapshot.paramMap.get('id');
+    if (id) {
+      this.error.set(null);
+      this.loadPage(id);
+    }
   }
 
   // Audio Control Methods
@@ -506,5 +1213,73 @@ export class PageComponent implements OnInit, OnDestroy, AfterViewInit {
     const currentIndex = speeds.indexOf(currentSpeed);
     const nextIndex = (currentIndex + 1) % speeds.length;
     this.audioService.setPlaybackRate(speeds[nextIndex]);
+  }
+
+  // ============ Auto-Save Methods ============
+
+  getSaveStatusClasses(): string {
+    const base = this.theme.isDark()
+      ? 'bg-zinc-800/90 backdrop-blur-sm border border-zinc-700'
+      : 'bg-white/90 backdrop-blur-sm border border-zinc-200 shadow-sm';
+
+    switch (this.saveStatus()) {
+      case 'saving':
+        return base + ' text-cyan-500';
+      case 'saved':
+        return base + (this.theme.isDark() ? ' text-zinc-400' : ' text-zinc-500');
+      case 'unsaved':
+        return base + ' text-amber-500';
+      case 'error':
+        return base + ' text-red-500';
+      default:
+        return base;
+    }
+  }
+
+  /**
+   * Schedule auto-save with debounce
+   */
+  private scheduleAutoSave() {
+    this.saveStatus.set('unsaved');
+    this.pendingChanges.set(true);
+
+    if (this.saveTimeout) {
+      clearTimeout(this.saveTimeout);
+    }
+
+    this.saveTimeout = setTimeout(() => {
+      this.performAutoSave();
+    }, 1500); // 1.5 second debounce
+  }
+
+  /**
+   * Perform the actual save operation
+   */
+  private async performAutoSave() {
+    if (!this.pendingChanges()) return;
+
+    const distillation = this.distillation();
+    if (!distillation) return;
+
+    this.saveStatus.set('saving');
+
+    try {
+      // Save blocks to API
+      const blocks = this.blocks();
+      await this.api.updateBlocks(distillation.id, blocks).toPromise();
+
+      this.saveStatus.set('saved');
+      this.pendingChanges.set(false);
+
+      // Auto-hide saved status after 2 seconds
+      setTimeout(() => {
+        if (this.saveStatus() === 'saved') {
+          // Keep showing saved status but make it subtle
+        }
+      }, 2000);
+    } catch (error) {
+      console.error('Auto-save failed:', error);
+      this.saveStatus.set('error');
+    }
   }
 }

@@ -5,42 +5,62 @@
  * 호버 시 드래그 핸들과 액션 메뉴 표시
  */
 
-import { Component, Input, Output, EventEmitter, signal, inject, ElementRef, ViewChild } from '@angular/core';
+import { Component, Input, Output, EventEmitter, signal, inject, ElementRef, ViewChild, AfterViewInit, OnChanges, SimpleChanges } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ThemeService } from '../../../core/services/theme.service';
 import { AudioService } from '../../../core/services/audio.service';
+import { UploadService } from '../../../core/services/upload.service';
 import { Block, BlockType, BlockProperties } from '../../../core/services/api.service';
 import { BLOCK_COLORS, BlockColor } from '../../../core/types/block.types';
+import { ImageUploadComponent } from './image-upload.component';
+import { TableEditorComponent } from './table-editor.component';
 
 @Component({
   selector: 'app-block-renderer',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, ImageUploadComponent, TableEditorComponent],
   template: `
     <div
       class="block-wrapper group relative flex items-start gap-2 py-1 -ml-8"
       (mouseenter)="isHovered.set(true)"
       (mouseleave)="isHovered.set(false); showMenu.set(false)">
 
-      <!-- Hover Actions (Left side) -->
-      <div class="hover-actions flex items-center gap-0.5 w-8 opacity-0 group-hover:opacity-100 transition-opacity">
-        <!-- Drag Handle -->
+      <!-- Hover Actions (Left side) - Notion-style -->
+      <div class="hover-actions flex items-center gap-0.5 w-14 -ml-6 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+        <!-- Plus Button (Add block with slash menu) -->
         <button
-          class="w-6 h-6 rounded flex items-center justify-center
-                 hover:bg-zinc-200 dark:hover:bg-zinc-700 cursor-grab active:cursor-grabbing"
-          [class]="theme.isDark() ? 'text-zinc-500' : 'text-zinc-400'"
-          title="드래그하여 이동">
-          <i class="pi pi-th-large text-xs"></i>
+          #plusButton
+          (click)="onPlusButtonClick($event)"
+          class="w-6 h-6 rounded flex items-center justify-center cursor-pointer
+                 transition-colors duration-150"
+          [class]="theme.isDark()
+            ? 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-700'
+            : 'text-zinc-400 hover:text-zinc-600 hover:bg-zinc-200'"
+          title="블록 추가 (/)">
+          <i class="pi pi-plus text-xs"></i>
         </button>
 
-        <!-- Menu Button -->
+        <!-- Drag Handle (also opens menu on click) -->
         <button
           (click)="showMenu.set(!showMenu())"
-          class="w-6 h-6 rounded flex items-center justify-center
-                 hover:bg-zinc-200 dark:hover:bg-zinc-700"
-          [class]="theme.isDark() ? 'text-zinc-500' : 'text-zinc-400'">
-          <i class="pi pi-ellipsis-h text-xs"></i>
+          draggable="true"
+          (dragstart)="onDragStart($event)"
+          (dragend)="onDragEnd($event)"
+          class="w-6 h-6 rounded flex items-center justify-center cursor-grab active:cursor-grabbing
+                 transition-colors duration-150"
+          [class]="theme.isDark()
+            ? 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-700'
+            : 'text-zinc-400 hover:text-zinc-600 hover:bg-zinc-200'"
+          title="드래그하여 이동 / 클릭하여 메뉴">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor">
+            <circle cx="4" cy="3" r="1.5"/>
+            <circle cx="10" cy="3" r="1.5"/>
+            <circle cx="4" cy="7" r="1.5"/>
+            <circle cx="10" cy="7" r="1.5"/>
+            <circle cx="4" cy="11" r="1.5"/>
+            <circle cx="10" cy="11" r="1.5"/>
+          </svg>
         </button>
 
         <!-- Dropdown Menu -->
@@ -181,106 +201,88 @@ import { BLOCK_COLORS, BlockColor } from '../../../core/types/block.types';
         @switch (block.type) {
           <!-- Heading 1 -->
           @case ('heading1') {
-            @if (isEditing) {
-              <input
-                #editInput
-                type="text"
-                [value]="block.content"
-                (blur)="saveContent(editInput.value)"
-                (keydown.enter)="saveContent(editInput.value)"
-                (keydown.escape)="cancelEdit()"
-                class="w-full text-3xl font-bold bg-transparent border-none outline-none"
-                [class]="theme.isDark() ? 'text-white' : 'text-zinc-900'"
-                autofocus />
-            } @else {
-              <h1
-                (click)="edit.emit()"
-                class="text-3xl font-bold cursor-text"
-                [class]="theme.isDark() ? 'text-white' : 'text-zinc-900'">
-                {{ block.content || '제목 1' }}
-              </h1>
-            }
+            <h1
+              #contentBlock
+              contenteditable="true"
+              [attr.data-placeholder]="'제목 1'"
+              [attr.data-block-id]="block.id"
+              (input)="onContentInput($event)"
+              (keydown)="onKeyDown($event)"
+              (focus)="onFocus()"
+              (blur)="onBlur($event)"
+              (paste)="onPaste($event)"
+              class="text-3xl font-bold outline-none empty:before:content-[attr(data-placeholder)] empty:before:text-zinc-400"
+              [class]="theme.isDark() ? 'text-white' : 'text-zinc-900'">
+            </h1>
           }
 
           <!-- Heading 2 -->
           @case ('heading2') {
-            @if (isEditing) {
-              <input
-                #editInput
-                type="text"
-                [value]="block.content"
-                (blur)="saveContent(editInput.value)"
-                (keydown.enter)="saveContent(editInput.value)"
-                class="w-full text-2xl font-semibold bg-transparent border-none outline-none"
-                autofocus />
-            } @else {
-              <h2
-                (click)="edit.emit()"
-                class="text-2xl font-semibold cursor-text">
-                {{ block.content || '제목 2' }}
-              </h2>
-            }
+            <h2
+              #contentBlock
+              contenteditable="true"
+              [attr.data-placeholder]="'제목 2'"
+              [attr.data-block-id]="block.id"
+              (input)="onContentInput($event)"
+              (keydown)="onKeyDown($event)"
+              (focus)="onFocus()"
+              (blur)="onBlur($event)"
+              (paste)="onPaste($event)"
+              class="text-2xl font-semibold outline-none empty:before:content-[attr(data-placeholder)] empty:before:text-zinc-400">
+            </h2>
           }
 
           <!-- Heading 3 -->
           @case ('heading3') {
-            @if (isEditing) {
-              <input
-                #editInput
-                type="text"
-                [value]="block.content"
-                (blur)="saveContent(editInput.value)"
-                (keydown.enter)="saveContent(editInput.value)"
-                class="w-full text-xl font-medium bg-transparent border-none outline-none"
-                autofocus />
-            } @else {
-              <h3
-                (click)="edit.emit()"
-                class="text-xl font-medium cursor-text">
-                {{ block.content || '제목 3' }}
-              </h3>
-            }
+            <h3
+              #contentBlock
+              contenteditable="true"
+              [attr.data-placeholder]="'제목 3'"
+              [attr.data-block-id]="block.id"
+              (input)="onContentInput($event)"
+              (keydown)="onKeyDown($event)"
+              (focus)="onFocus()"
+              (blur)="onBlur($event)"
+              (paste)="onPaste($event)"
+              class="text-xl font-medium outline-none empty:before:content-[attr(data-placeholder)] empty:before:text-zinc-400">
+            </h3>
           }
 
           <!-- Bullet List -->
           @case ('bullet') {
             <div class="flex items-start gap-2">
-              <span class="mt-1.5 w-1.5 h-1.5 rounded-full bg-current opacity-60"></span>
-              @if (isEditing) {
-                <input
-                  #editInput
-                  type="text"
-                  [value]="block.content"
-                  (blur)="saveContent(editInput.value)"
-                  (keydown.enter)="saveContent(editInput.value)"
-                  class="flex-1 bg-transparent border-none outline-none"
-                  autofocus />
-              } @else {
-                <span (click)="edit.emit()" class="flex-1 cursor-text">
-                  {{ block.content }}
-                </span>
-              }
+              <span class="mt-2 w-1.5 h-1.5 rounded-full bg-current opacity-60 shrink-0"></span>
+              <span
+                #contentBlock
+                contenteditable="true"
+                [attr.data-placeholder]="'목록 아이템'"
+                [attr.data-block-id]="block.id"
+                (input)="onContentInput($event)"
+                (keydown)="onKeyDown($event)"
+                (focus)="onFocus()"
+                (blur)="onBlur($event)"
+                (paste)="onPaste($event)"
+                class="flex-1 outline-none empty:before:content-[attr(data-placeholder)] empty:before:text-zinc-400">
+              </span>
             </div>
           }
 
           <!-- Numbered List -->
           @case ('numbered') {
             <div class="flex items-start gap-2">
-              <span class="text-sm opacity-60 min-w-6">{{ block.position + 1 }}.</span>
-              @if (isEditing) {
-                <input
-                  #editInput
-                  type="text"
-                  [value]="block.content"
-                  (blur)="saveContent(editInput.value)"
-                  (keydown.enter)="saveContent(editInput.value)"
-                  class="flex-1 bg-transparent border-none outline-none"
-                  autofocus />
-              } @else {
-                <span (click)="edit.emit()" class="flex-1 cursor-text">
-                  {{ block.content }}
-                </span>
-              }
+              <span class="text-sm opacity-60 min-w-6 shrink-0">{{ block.position + 1 }}.</span>
+              <span
+                #contentBlock
+                contenteditable="true"
+                [attr.data-placeholder]="'목록 아이템'"
+                [attr.data-block-id]="block.id"
+                (input)="onContentInput($event)"
+                (keydown)="onKeyDown($event)"
+                (focus)="onFocus()"
+                (blur)="onBlur($event)"
+                (paste)="onPaste($event)"
+                class="flex-1 outline-none empty:before:content-[attr(data-placeholder)] empty:before:text-zinc-400">
+              </span>
             </div>
           }
 
@@ -291,46 +293,40 @@ import { BLOCK_COLORS, BlockColor } from '../../../core/types/block.types';
                 type="checkbox"
                 [checked]="block.properties?.checked"
                 (change)="toggleChecked()"
-                class="mt-1 w-4 h-4 rounded border-2 cursor-pointer
+                class="mt-1 w-4 h-4 rounded border-2 cursor-pointer shrink-0
                        accent-cyan-500" />
-              @if (isEditing) {
-                <input
-                  #editInput
-                  type="text"
-                  [value]="block.content"
-                  (blur)="saveContent(editInput.value)"
-                  (keydown.enter)="saveContent(editInput.value)"
-                  class="flex-1 bg-transparent border-none outline-none"
-                  [class.line-through]="block.properties?.checked"
-                  [class.opacity-50]="block.properties?.checked"
-                  autofocus />
-              } @else {
-                <span
-                  (click)="edit.emit()"
-                  class="flex-1 cursor-text"
-                  [class.line-through]="block.properties?.checked"
-                  [class.opacity-50]="block.properties?.checked">
-                  {{ block.content }}
-                </span>
-              }
+              <span
+                #contentBlock
+                contenteditable="true"
+                [attr.data-placeholder]="'할 일'"
+                [attr.data-block-id]="block.id"
+                (input)="onContentInput($event)"
+                (keydown)="onKeyDown($event)"
+                (focus)="onFocus()"
+                (blur)="onBlur($event)"
+                (paste)="onPaste($event)"
+                class="flex-1 outline-none empty:before:content-[attr(data-placeholder)] empty:before:text-zinc-400"
+                [class.line-through]="block.properties?.checked"
+                [class.opacity-50]="block.properties?.checked">
+              </span>
             </div>
           }
 
           <!-- Quote -->
           @case ('quote') {
             <div class="border-l-4 border-zinc-300 dark:border-zinc-600 pl-4 py-1 italic">
-              @if (isEditing) {
-                <textarea
-                  #editInput
-                  [value]="block.content"
-                  (blur)="saveContent(editInput.value)"
-                  (keydown.escape)="cancelEdit()"
-                  rows="2"
-                  class="w-full bg-transparent border-none outline-none resize-none"
-                  autofocus></textarea>
-              } @else {
-                <p (click)="edit.emit()" class="cursor-text">{{ block.content }}</p>
-              }
+              <p
+                #contentBlock
+                contenteditable="true"
+                [attr.data-placeholder]="'인용문'"
+                [attr.data-block-id]="block.id"
+                (input)="onContentInput($event)"
+                (keydown)="onKeyDown($event)"
+                (focus)="onFocus()"
+                (blur)="onBlur($event)"
+                (paste)="onPaste($event)"
+                class="outline-none empty:before:content-[attr(data-placeholder)] empty:before:text-zinc-400">
+              </p>
             </div>
           }
 
@@ -338,20 +334,23 @@ import { BLOCK_COLORS, BlockColor } from '../../../core/types/block.types';
           @case ('callout') {
             <div class="callout flex items-start gap-3 p-4 rounded-lg"
                  [style.background]="getCalloutBg()">
-              <span class="text-xl">{{ block.properties?.icon || '💡' }}</span>
+              <button (click)="showEmojiPicker.set(!showEmojiPicker())"
+                      class="text-xl hover:scale-110 transition-transform shrink-0">
+                {{ block.properties?.icon || '💡' }}
+              </button>
               <div class="flex-1">
-                @if (isEditing) {
-                  <textarea
-                    #editInput
-                    [value]="block.content"
-                    (blur)="saveContent(editInput.value)"
-                    (keydown.escape)="cancelEdit()"
-                    rows="2"
-                    class="w-full bg-transparent border-none outline-none resize-none"
-                    autofocus></textarea>
-                } @else {
-                  <p (click)="edit.emit()" class="cursor-text">{{ block.content }}</p>
-                }
+                <p
+                  #contentBlock
+                  contenteditable="true"
+                  [attr.data-placeholder]="'콜아웃 내용'"
+                  [attr.data-block-id]="block.id"
+                  (input)="onContentInput($event)"
+                  (keydown)="onKeyDown($event)"
+                  (focus)="onFocus()"
+                  (blur)="onBlur($event)"
+                  (paste)="onPaste($event)"
+                  class="outline-none empty:before:content-[attr(data-placeholder)] empty:before:text-zinc-400">
+                </p>
               </div>
             </div>
           }
@@ -443,24 +442,25 @@ import { BLOCK_COLORS, BlockColor } from '../../../core/types/block.types';
           <!-- Toggle -->
           @case ('toggle') {
             <div class="toggle-block">
-              <div
-                class="flex items-center gap-2 cursor-pointer"
-                (click)="toggleCollapsed()">
-                <i class="pi text-sm transition-transform"
-                   [class]="block.properties?.collapsed ? 'pi-chevron-right' : 'pi-chevron-down'"></i>
-                @if (isEditing) {
-                  <input
-                    #editInput
-                    type="text"
-                    [value]="block.content"
-                    (blur)="saveContent(editInput.value)"
-                    (keydown.enter)="saveContent(editInput.value)"
-                    (click)="$event.stopPropagation()"
-                    class="flex-1 bg-transparent border-none outline-none"
-                    autofocus />
-                } @else {
-                  <span class="flex-1">{{ block.content }}</span>
-                }
+              <div class="flex items-center gap-2">
+                <button
+                  (click)="toggleCollapsed()"
+                  class="p-1 rounded hover:bg-zinc-200 dark:hover:bg-zinc-700 shrink-0">
+                  <i class="pi text-sm transition-transform"
+                     [class]="block.properties?.collapsed ? 'pi-chevron-right' : 'pi-chevron-down'"></i>
+                </button>
+                <span
+                  #contentBlock
+                  contenteditable="true"
+                  [attr.data-placeholder]="'토글'"
+                  [attr.data-block-id]="block.id"
+                  (input)="onContentInput($event)"
+                  (keydown)="onKeyDown($event)"
+                  (focus)="onFocus()"
+                  (blur)="onBlur($event)"
+                  (paste)="onPaste($event)"
+                  class="flex-1 outline-none empty:before:content-[attr(data-placeholder)] empty:before:text-zinc-400">
+                </span>
               </div>
               @if (!block.properties?.collapsed && block.children?.length) {
                 <div class="ml-6 mt-2 pl-4 border-l-2 border-zinc-200 dark:border-zinc-700">
@@ -477,48 +477,154 @@ import { BLOCK_COLORS, BlockColor } from '../../../core/types/block.types';
             </div>
           }
 
+          <!-- Image Block -->
+          @case ('image') {
+            <div class="image-block relative group/image">
+              @if (block.properties?.imageUrl) {
+                <!-- Image Display -->
+                <figure class="relative">
+                  <div class="relative inline-block"
+                       [class]="getImageWidthClass()">
+                    <img
+                      [src]="block.properties.imageUrl"
+                      [alt]="block.properties?.imageCaption || ''"
+                      class="rounded-lg max-w-full h-auto"
+                      [class]="getImageAlignClass()" />
+
+                    <!-- Image Toolbar (on hover) -->
+                    <div class="image-toolbar absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover/image:opacity-100 transition-opacity">
+                      <!-- Size Options -->
+                      <div class="flex items-center gap-0.5 p-1 rounded-lg"
+                           [class]="theme.isDark() ? 'bg-zinc-800/90' : 'bg-white/90'">
+                        <button
+                          (click)="setImageWidth('small')"
+                          class="px-2 py-1 text-xs rounded transition-colors cursor-pointer"
+                          [class]="block.properties?.imageWidth === 'small'
+                            ? 'bg-cyan-500 text-white'
+                            : (theme.isDark() ? 'hover:bg-zinc-700' : 'hover:bg-zinc-100')"
+                          title="작게">S</button>
+                        <button
+                          (click)="setImageWidth('medium')"
+                          class="px-2 py-1 text-xs rounded transition-colors cursor-pointer"
+                          [class]="block.properties?.imageWidth === 'medium' || !block.properties?.imageWidth
+                            ? 'bg-cyan-500 text-white'
+                            : (theme.isDark() ? 'hover:bg-zinc-700' : 'hover:bg-zinc-100')"
+                          title="중간">M</button>
+                        <button
+                          (click)="setImageWidth('large')"
+                          class="px-2 py-1 text-xs rounded transition-colors cursor-pointer"
+                          [class]="block.properties?.imageWidth === 'large'
+                            ? 'bg-cyan-500 text-white'
+                            : (theme.isDark() ? 'hover:bg-zinc-700' : 'hover:bg-zinc-100')"
+                          title="크게">L</button>
+                        <button
+                          (click)="setImageWidth('full')"
+                          class="px-2 py-1 text-xs rounded transition-colors cursor-pointer"
+                          [class]="block.properties?.imageWidth === 'full'
+                            ? 'bg-cyan-500 text-white'
+                            : (theme.isDark() ? 'hover:bg-zinc-700' : 'hover:bg-zinc-100')"
+                          title="전체">F</button>
+                      </div>
+
+                      <!-- Align Options -->
+                      <div class="flex items-center gap-0.5 p-1 rounded-lg ml-1"
+                           [class]="theme.isDark() ? 'bg-zinc-800/90' : 'bg-white/90'">
+                        <button
+                          (click)="setImageAlign('left')"
+                          class="p-1.5 rounded transition-colors cursor-pointer"
+                          [class]="block.properties?.imageAlign === 'left'
+                            ? 'bg-cyan-500 text-white'
+                            : (theme.isDark() ? 'hover:bg-zinc-700' : 'hover:bg-zinc-100')"
+                          title="왼쪽">
+                          <i class="pi pi-align-left text-xs"></i>
+                        </button>
+                        <button
+                          (click)="setImageAlign('center')"
+                          class="p-1.5 rounded transition-colors cursor-pointer"
+                          [class]="block.properties?.imageAlign === 'center' || !block.properties?.imageAlign
+                            ? 'bg-cyan-500 text-white'
+                            : (theme.isDark() ? 'hover:bg-zinc-700' : 'hover:bg-zinc-100')"
+                          title="가운데">
+                          <i class="pi pi-align-center text-xs"></i>
+                        </button>
+                        <button
+                          (click)="setImageAlign('right')"
+                          class="p-1.5 rounded transition-colors cursor-pointer"
+                          [class]="block.properties?.imageAlign === 'right'
+                            ? 'bg-cyan-500 text-white'
+                            : (theme.isDark() ? 'hover:bg-zinc-700' : 'hover:bg-zinc-100')"
+                          title="오른쪽">
+                          <i class="pi pi-align-right text-xs"></i>
+                        </button>
+                      </div>
+
+                      <!-- Replace Image -->
+                      <button
+                        (click)="replaceImage()"
+                        class="p-1.5 rounded transition-colors cursor-pointer ml-1"
+                        [class]="theme.isDark() ? 'bg-zinc-800/90 hover:bg-zinc-700' : 'bg-white/90 hover:bg-zinc-100'"
+                        title="이미지 변경">
+                        <i class="pi pi-refresh text-xs"></i>
+                      </button>
+                    </div>
+                  </div>
+
+                  <!-- Caption -->
+                  <figcaption
+                    contenteditable="true"
+                    [attr.data-placeholder]="'캡션 추가...'"
+                    class="mt-2 text-sm text-center outline-none empty:before:content-[attr(data-placeholder)] empty:before:text-zinc-400"
+                    [class]="theme.isDark() ? 'text-zinc-400' : 'text-zinc-500'"
+                    (blur)="onCaptionChange($event)">{{ block.properties?.imageCaption || '' }}</figcaption>
+                </figure>
+              } @else {
+                <!-- Image Upload Placeholder -->
+                <app-image-upload
+                  [distillationId]="block.distillationId"
+                  (uploaded)="onImageUploaded($event)" />
+              }
+            </div>
+          }
+
+          <!-- Table Block -->
+          @case ('table') {
+            <app-table-editor
+              [data]="block.properties?.tableData || [['', ''], ['', '']]"
+              [hasHeader]="block.properties?.tableHeaders ?? true"
+              [columnWidths]="block.properties?.tableColumnWidths || []"
+              (dataChange)="onTableDataChange($event)"
+              (headerToggle)="onTableHeaderToggle($event)"
+              (columnWidthsChange)="onTableColumnWidthsChange($event)" />
+          }
+
           <!-- Default Text -->
           @default {
-            @if (isEditing) {
-              <textarea
-                #editInput
-                [value]="block.content"
-                (blur)="saveContent(editInput.value)"
-                (keydown.escape)="cancelEdit()"
-                (keydown.enter)="handleEnter($event)"
-                rows="1"
-                class="w-full bg-transparent border-none outline-none resize-none leading-relaxed"
-                [placeholder]="'텍스트를 입력하거나 / 를 입력하세요...'"
-                autofocus></textarea>
-            } @else {
-              <p
-                (click)="edit.emit()"
-                class="cursor-text leading-relaxed min-h-6"
-                [class.text-zinc-400]="!block.content">
-                {{ block.content || '텍스트를 입력하거나 / 를 입력하세요...' }}
-              </p>
-            }
+            <p
+              #contentBlock
+              contenteditable="true"
+              [attr.data-placeholder]="'텍스트를 입력하거나 / 를 입력하세요...'"
+              [attr.data-block-id]="block.id"
+              (input)="onContentInput($event)"
+              (keydown)="onKeyDown($event)"
+              (focus)="onFocus()"
+              (blur)="onBlur($event)"
+              (paste)="onPaste($event)"
+              class="leading-relaxed min-h-6 outline-none empty:before:content-[attr(data-placeholder)] empty:before:text-zinc-400">
+            </p>
           }
         }
       </div>
 
-      <!-- Add Block After (on hover) -->
-      @if (isHovered()) {
-        <button
-          (click)="addBlockAfter.emit()"
-          class="absolute -bottom-3 left-8 right-0 h-6 flex items-center justify-center
-                 opacity-0 group-hover:opacity-100 transition-opacity">
-          <div class="w-full h-px bg-cyan-500"></div>
-          <div class="absolute bg-cyan-500 text-white text-xs px-2 py-0.5 rounded">
-            <i class="pi pi-plus text-xs"></i>
-          </div>
-        </button>
-      }
     </div>
   `,
   styles: [`
+    :host {
+      display: block;
+    }
+
     .block-wrapper {
-      transition: background-color 0.15s;
+      transition: background-color 0.15s, opacity 0.2s;
+      padding-left: 1.5rem;
     }
 
     .block-wrapper:hover {
@@ -529,6 +635,16 @@ import { BLOCK_COLORS, BlockColor } from '../../../core/types/block.types';
       background: rgba(255, 255, 255, 0.02);
     }
 
+    /* Drag feedback */
+    .block-wrapper.dragging {
+      opacity: 0.5;
+      background: rgba(6, 182, 212, 0.1);
+    }
+
+    .block-wrapper.drag-over {
+      border-top: 2px solid rgb(6, 182, 212);
+    }
+
     .menu-dropdown {
       animation: fadeIn 0.1s ease-out;
     }
@@ -537,9 +653,16 @@ import { BLOCK_COLORS, BlockColor } from '../../../core/types/block.types';
       from { opacity: 0; transform: translateY(-4px); }
       to { opacity: 1; transform: translateY(0); }
     }
+
+    /* Contenteditable placeholder styling */
+    [contenteditable]:empty:before {
+      content: attr(data-placeholder);
+      color: rgb(161 161 170);
+      pointer-events: none;
+    }
   `]
 })
-export class BlockRendererComponent {
+export class BlockRendererComponent implements AfterViewInit, OnChanges {
   theme = inject(ThemeService);
   private audioService = inject(AudioService);
 
@@ -551,17 +674,70 @@ export class BlockRendererComponent {
   @Output() delete = new EventEmitter<void>();
   @Output() duplicate = new EventEmitter<void>();
   @Output() addBlockAfter = new EventEmitter<void>();
+  @Output() showSlashMenu = new EventEmitter<{ afterBlockId: string; position: { x: number; y: number } }>();
   @Output() moveUp = new EventEmitter<void>();
   @Output() moveDown = new EventEmitter<void>();
   @Output() typeChange = new EventEmitter<{ id: string; newType: string }>();
   @Output() aiAction = new EventEmitter<{ action: string; blockId: string; content: string }>();
+  @Output() splitBlock = new EventEmitter<{ id: string; beforeContent: string; afterContent: string }>();
+  @Output() mergeWithPrevious = new EventEmitter<{ id: string; content: string }>();
+  @Output() slashCommand = new EventEmitter<{ id: string; position: { x: number; y: number } }>();
+  @Output() focusBlock = new EventEmitter<{ id: string; position?: 'start' | 'end' }>();
+  @Output() dragStart = new EventEmitter<{ id: string; event: DragEvent }>();
+  @Output() dragEnd = new EventEmitter<{ id: string; event: DragEvent }>();
 
   @ViewChild('editInput') editInput?: ElementRef<HTMLInputElement | HTMLTextAreaElement>;
+  @ViewChild('contentBlock') contentBlock?: ElementRef<HTMLElement>;
 
   isHovered = signal(false);
   showMenu = signal(false);
   showTurnIntoMenu = signal(false);
   showColorMenu = signal(false);
+  showEmojiPicker = signal(false);
+  isFocused = signal(false);
+
+  // Track previous block id to detect when block changes
+  private previousBlockId: string | null = null;
+  private initialized = false;
+
+  // Debounce for auto-save
+  private saveTimeout: ReturnType<typeof setTimeout> | null = null;
+
+  ngAfterViewInit() {
+    // Set initial content after view is initialized
+    this.setInitialContent();
+    this.initialized = true;
+  }
+
+  ngOnChanges(changes: SimpleChanges) {
+    // Only update content if block id changed (not during typing)
+    if (changes['block'] && this.initialized) {
+      const newBlock = changes['block'].currentValue as Block;
+      const oldBlock = changes['block'].previousValue as Block | undefined;
+
+      // Reset content if block id changed or block type changed
+      if (newBlock && (newBlock.id !== this.previousBlockId ||
+          (oldBlock && newBlock.type !== oldBlock.type))) {
+        // Use setTimeout to wait for the DOM to update with new element type
+        setTimeout(() => this.setInitialContent(), 0);
+      }
+    }
+  }
+
+  /**
+   * Set initial content to contenteditable element
+   * Only called on init or when block id changes
+   */
+  private setInitialContent() {
+    if (!this.contentBlock?.nativeElement) return;
+
+    const element = this.contentBlock.nativeElement;
+    // Only set if the content is different and we're not focused
+    if (!this.isFocused() && element.textContent !== this.block.content) {
+      element.textContent = this.block.content || '';
+    }
+    this.previousBlockId = this.block.id;
+  }
 
   // Block type options for "Turn Into" menu
   blockTypes = [
@@ -576,6 +752,8 @@ export class BlockRendererComponent {
     { id: 'callout', label: '콜아웃', icon: 'pi-info-circle' },
     { id: 'code', label: '코드', icon: 'pi-code' },
     { id: 'toggle', label: '토글', icon: 'pi-chevron-right' },
+    { id: 'image', label: '이미지', icon: 'pi-image' },
+    { id: 'table', label: '표', icon: 'pi-table' },
   ];
 
   // Color options
@@ -712,5 +890,371 @@ export class BlockRendererComponent {
         this.addBlockAfter.emit();
       }
     }
+  }
+
+  // ============ Contenteditable Event Handlers ============
+
+  onContentInput(event: Event) {
+    const target = event.target as HTMLElement;
+    const content = target.textContent || '';
+
+    // Check for slash command - trigger when '/' is typed at start of empty/whitespace-only block
+    // or when the content ends with '/' after a space or at start
+    const trimmedContent = content.trim();
+    if (trimmedContent === '/' ||
+        (content.endsWith('/') && (content.length === 1 || content[content.length - 2] === ' '))) {
+      const selection = window.getSelection();
+      if (selection && selection.rangeCount > 0) {
+        const range = selection.getRangeAt(0);
+        const rect = range.getBoundingClientRect();
+        this.slashCommand.emit({
+          id: this.block.id,
+          position: { x: rect.left, y: rect.bottom + 4 }
+        });
+        return;
+      }
+    }
+
+    // Debounced save
+    if (this.saveTimeout) {
+      clearTimeout(this.saveTimeout);
+    }
+    this.saveTimeout = setTimeout(() => {
+      this.update.emit({ id: this.block.id, content });
+    }, 300);
+  }
+
+  onKeyDown(event: KeyboardEvent) {
+    const target = event.target as HTMLElement;
+    const content = target.textContent || '';
+    const selection = window.getSelection();
+
+    // Enter key - split block
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+
+      if (selection && selection.rangeCount > 0) {
+        const range = selection.getRangeAt(0);
+        const preCaretRange = range.cloneRange();
+        preCaretRange.selectNodeContents(target);
+        preCaretRange.setEnd(range.startContainer, range.startOffset);
+        const caretOffset = preCaretRange.toString().length;
+
+        const beforeContent = content.slice(0, caretOffset);
+        const afterContent = content.slice(caretOffset);
+
+        this.splitBlock.emit({
+          id: this.block.id,
+          beforeContent,
+          afterContent
+        });
+      } else {
+        this.addBlockAfter.emit();
+      }
+      return;
+    }
+
+    // Backspace at start - merge with previous
+    if (event.key === 'Backspace') {
+      if (selection && selection.rangeCount > 0) {
+        const range = selection.getRangeAt(0);
+        if (range.startOffset === 0 && range.endOffset === 0) {
+          event.preventDefault();
+          this.mergeWithPrevious.emit({
+            id: this.block.id,
+            content: content
+          });
+          return;
+        }
+      }
+    }
+
+    // Arrow keys for navigation
+    if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+      const isAtStart = this.isCaretAtStart();
+      const isAtEnd = this.isCaretAtEnd();
+
+      if (event.key === 'ArrowUp' && isAtStart) {
+        event.preventDefault();
+        this.focusBlock.emit({ id: this.block.id, position: 'end' });
+      } else if (event.key === 'ArrowDown' && isAtEnd) {
+        event.preventDefault();
+        this.focusBlock.emit({ id: this.block.id, position: 'start' });
+      }
+    }
+
+    // Check for markdown shortcuts at start of block
+    if (event.key === ' ') {
+      const trimmedContent = content.trimStart();
+
+      // Heading shortcuts
+      if (trimmedContent === '#') {
+        event.preventDefault();
+        this.turnInto('heading1');
+        target.textContent = '';
+        return;
+      }
+      if (trimmedContent === '##') {
+        event.preventDefault();
+        this.turnInto('heading2');
+        target.textContent = '';
+        return;
+      }
+      if (trimmedContent === '###') {
+        event.preventDefault();
+        this.turnInto('heading3');
+        target.textContent = '';
+        return;
+      }
+
+      // Bullet shortcut
+      if (trimmedContent === '-' || trimmedContent === '*') {
+        event.preventDefault();
+        this.turnInto('bullet');
+        target.textContent = '';
+        return;
+      }
+
+      // Numbered list shortcut
+      if (/^\d+\.$/.test(trimmedContent)) {
+        event.preventDefault();
+        this.turnInto('numbered');
+        target.textContent = '';
+        return;
+      }
+
+      // Todo shortcut
+      if (trimmedContent === '[]' || trimmedContent === '[ ]') {
+        event.preventDefault();
+        this.turnInto('todo');
+        target.textContent = '';
+        return;
+      }
+
+      // Quote shortcut
+      if (trimmedContent === '>') {
+        event.preventDefault();
+        this.turnInto('quote');
+        target.textContent = '';
+        return;
+      }
+
+      // Toggle shortcut
+      if (trimmedContent === '>>' || trimmedContent === '▶') {
+        event.preventDefault();
+        this.turnInto('toggle');
+        target.textContent = '';
+        return;
+      }
+
+      // Divider shortcut
+      if (trimmedContent === '---' || trimmedContent === '***') {
+        event.preventDefault();
+        this.turnInto('divider');
+        target.textContent = '';
+        return;
+      }
+
+      // Code shortcut
+      if (trimmedContent === '```') {
+        event.preventDefault();
+        this.turnInto('code');
+        target.textContent = '';
+        return;
+      }
+    }
+  }
+
+  onFocus() {
+    this.isFocused.set(true);
+    this.edit.emit();
+  }
+
+  onBlur(event: FocusEvent) {
+    this.isFocused.set(false);
+    const target = event.target as HTMLElement;
+    const content = target.textContent || '';
+
+    // Clear any pending save timeout and save immediately
+    if (this.saveTimeout) {
+      clearTimeout(this.saveTimeout);
+      this.saveTimeout = null;
+    }
+
+    this.update.emit({ id: this.block.id, content });
+  }
+
+  onPaste(event: ClipboardEvent) {
+    event.preventDefault();
+    const text = event.clipboardData?.getData('text/plain') || '';
+
+    // Insert plain text at cursor position
+    const selection = window.getSelection();
+    if (selection && selection.rangeCount > 0) {
+      const range = selection.getRangeAt(0);
+      range.deleteContents();
+      range.insertNode(document.createTextNode(text));
+      range.collapse(false);
+    }
+  }
+
+  // ============ Utility Methods ============
+
+  private isCaretAtStart(): boolean {
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0) return false;
+
+    const range = selection.getRangeAt(0);
+    return range.startOffset === 0 && range.endOffset === 0;
+  }
+
+  private isCaretAtEnd(): boolean {
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0) return false;
+
+    const target = this.contentBlock?.nativeElement;
+    if (!target) return false;
+
+    const range = selection.getRangeAt(0);
+    const content = target.textContent || '';
+    return range.endOffset >= content.length;
+  }
+
+  /**
+   * Focus this block's contenteditable element
+   */
+  focus(position: 'start' | 'end' = 'end') {
+    const element = this.contentBlock?.nativeElement;
+    if (!element) return;
+
+    element.focus();
+
+    const range = document.createRange();
+    const selection = window.getSelection();
+
+    if (position === 'start') {
+      range.setStart(element, 0);
+      range.setEnd(element, 0);
+    } else {
+      range.selectNodeContents(element);
+      range.collapse(false);
+    }
+
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+  }
+
+  // ============ Drag & Drop ============
+
+  onDragStart(event: DragEvent) {
+    event.dataTransfer?.setData('text/plain', this.block.id);
+    event.dataTransfer!.effectAllowed = 'move';
+    this.dragStart.emit({ id: this.block.id, event });
+  }
+
+  onDragEnd(event: DragEvent) {
+    this.dragEnd.emit({ id: this.block.id, event });
+  }
+
+  // ============ Plus Button ============
+
+  onPlusButtonClick(event: MouseEvent) {
+    const target = event.target as HTMLElement;
+    const button = target.closest('button');
+    if (button) {
+      const rect = button.getBoundingClientRect();
+      this.showSlashMenu.emit({
+        afterBlockId: this.block.id,
+        position: { x: rect.left, y: rect.bottom + 4 }
+      });
+    }
+  }
+
+  // ============ Image Block Methods ============
+
+  getImageWidthClass(): string {
+    const width = this.block.properties?.imageWidth || 'medium';
+    switch (width) {
+      case 'small': return 'max-w-xs';
+      case 'medium': return 'max-w-md';
+      case 'large': return 'max-w-2xl';
+      case 'full': return 'w-full';
+      default: return 'max-w-md';
+    }
+  }
+
+  getImageAlignClass(): string {
+    const align = this.block.properties?.imageAlign || 'center';
+    switch (align) {
+      case 'left': return '';
+      case 'center': return 'mx-auto block';
+      case 'right': return 'ml-auto block';
+      default: return 'mx-auto block';
+    }
+  }
+
+  setImageWidth(width: 'small' | 'medium' | 'large' | 'full'): void {
+    this.update.emit({
+      id: this.block.id,
+      properties: { imageWidth: width }
+    });
+  }
+
+  setImageAlign(align: 'left' | 'center' | 'right'): void {
+    this.update.emit({
+      id: this.block.id,
+      properties: { imageAlign: align }
+    });
+  }
+
+  onImageUploaded(result: { url: string; path: string }): void {
+    this.update.emit({
+      id: this.block.id,
+      properties: {
+        imageUrl: result.url,
+        imageWidth: 'medium',
+        imageAlign: 'center'
+      }
+    });
+  }
+
+  onCaptionChange(event: FocusEvent): void {
+    const target = event.target as HTMLElement;
+    const caption = target.textContent || '';
+    this.update.emit({
+      id: this.block.id,
+      properties: { imageCaption: caption }
+    });
+  }
+
+  replaceImage(): void {
+    // Clear the image URL to show upload form
+    this.update.emit({
+      id: this.block.id,
+      properties: { imageUrl: undefined }
+    });
+  }
+
+  // ============ Table Block Methods ============
+
+  onTableDataChange(data: string[][]): void {
+    this.update.emit({
+      id: this.block.id,
+      properties: { tableData: data }
+    });
+  }
+
+  onTableHeaderToggle(hasHeader: boolean): void {
+    this.update.emit({
+      id: this.block.id,
+      properties: { tableHeaders: hasHeader }
+    });
+  }
+
+  onTableColumnWidthsChange(widths: number[]): void {
+    this.update.emit({
+      id: this.block.id,
+      properties: { tableColumnWidths: widths }
+    });
   }
 }

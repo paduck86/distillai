@@ -112,7 +112,8 @@ export type BlockType =
   | 'text' | 'heading1' | 'heading2' | 'heading3'
   | 'bullet' | 'numbered' | 'todo' | 'toggle'
   | 'quote' | 'callout' | 'divider' | 'code'
-  | 'timestamp' | 'ai_summary' | 'embed';
+  | 'timestamp' | 'ai_summary' | 'embed'
+  | 'image' | 'table';
 
 export type BlockColor =
   | 'default' | 'gray' | 'brown' | 'orange' | 'yellow'
@@ -129,6 +130,17 @@ export interface BlockProperties {
   aiGenerated?: boolean;
   embedUrl?: string;
   embedType?: 'youtube' | 'image' | 'link';
+  // Image properties
+  imageUrl?: string;
+  imageCaption?: string;
+  imageWidth?: 'small' | 'medium' | 'large' | 'full';
+  imageAlign?: 'left' | 'center' | 'right';
+  // Table properties
+  tableData?: string[][];
+  tableHeaders?: boolean;
+  tableColumnWidths?: number[];
+  // Inline formatting
+  highlight?: string;
 }
 
 export interface Block {
@@ -224,6 +236,12 @@ export class ApiService {
 
   private async getHeaders(): Promise<HttpHeaders> {
     const token = await this.supabase.getAccessToken();
+
+    // Debug: log token status
+    if (!token) {
+      console.warn('[API] No access token available - user may not be logged in');
+    }
+
     return new HttpHeaders({
       'Content-Type': 'application/json',
       ...(token && { Authorization: `Bearer ${token}` })
@@ -291,23 +309,23 @@ export class ApiService {
     if (params?.limit) queryParams.set('limit', String(params.limit));
 
     const query = queryParams.toString();
-    return this.request('GET', `/lectures${query ? `?${query}` : ''}`);
+    return this.request('GET', `/pages${query ? `?${query}` : ''}`);
   }
 
   getLecture(id: string): Observable<ApiResponse<Lecture>> {
-    return this.request('GET', `/lectures/${id}`);
+    return this.request('GET', `/pages/${id}`);
   }
 
   createLecture(data: Partial<Lecture>): Observable<ApiResponse<Lecture>> {
-    return this.request('POST', '/lectures', data);
+    return this.request('POST', '/pages', data);
   }
 
   updateLecture(id: string, data: Partial<Lecture>): Observable<ApiResponse<Lecture>> {
-    return this.request('PUT', `/lectures/${id}`, data);
+    return this.request('PUT', `/pages/${id}`, data);
   }
 
   deleteLecture(id: string): Observable<void> {
-    return this.request('DELETE', `/lectures/${id}`);
+    return this.request('DELETE', `/pages/${id}`);
   }
 
   async uploadAudio(lectureId: string, file: Blob, durationSeconds?: number): Promise<ApiResponse<Lecture>> {
@@ -318,7 +336,7 @@ export class ApiService {
       formData.append('durationSeconds', String(Math.round(durationSeconds)));
     }
 
-    const response = await fetch(`${this.baseUrl}/lectures/${lectureId}/upload`, {
+    const response = await fetch(`${this.baseUrl}/pages/${lectureId}/upload`, {
       method: 'POST',
       headers: {
         ...(token && { Authorization: `Bearer ${token}` })
@@ -346,7 +364,7 @@ export class ApiService {
 
   summarizeLecture(id: string, language?: SupportedLanguage): Observable<ApiResponse<Lecture>> {
     const lang = language || this.getBrowserLanguage();
-    return this.request('POST', `/lectures/${id}/summarize`, { language: lang });
+    return this.request('POST', `/pages/${id}/summarize`, { language: lang });
   }
 
   // Chat (Agent D)
@@ -389,7 +407,7 @@ export class ApiService {
 
   // Category Confirmation
   confirmCategory(lectureId: string, data: { categoryId?: string; tags?: string[] }): Observable<ApiResponse<Lecture>> {
-    return this.request('PUT', `/lectures/${lectureId}/confirm-category`, data);
+    return this.request('PUT', `/pages/${lectureId}/confirm-category`, data);
   }
 
   // Uncategorized lectures
@@ -399,37 +417,37 @@ export class ApiService {
     if (params?.limit) queryParams.set('limit', String(params.limit));
 
     const query = queryParams.toString();
-    return this.request('GET', `/lectures/uncategorized${query ? `?${query}` : ''}`);
+    return this.request('GET', `/pages/uncategorized${query ? `?${query}` : ''}`);
   }
 
   // Import from YouTube
   createFromYoutube(url: string, categoryId?: string): Observable<ApiResponse<Lecture>> {
-    return this.request('POST', '/lectures/youtube', { url, categoryId });
+    return this.request('POST', '/pages/youtube', { url, categoryId });
   }
 
   // Import from external URL
   createFromUrl(url: string, categoryId?: string): Observable<ApiResponse<Lecture>> {
-    return this.request('POST', '/lectures/url', { url, categoryId });
+    return this.request('POST', '/pages/url', { url, categoryId });
   }
 
   // Import from text
   createFromText(text: string, title?: string, categoryId?: string): Observable<ApiResponse<Lecture>> {
-    return this.request('POST', '/lectures/text', { text, title, categoryId });
+    return this.request('POST', '/pages/text', { text, title, categoryId });
   }
 
   // Create blank note
   createNote(title: string, categoryId?: string): Observable<ApiResponse<Lecture>> {
-    return this.request('POST', '/lectures/note', { title, categoryId });
+    return this.request('POST', '/pages/note', { title, categoryId });
   }
 
   // Create from clipboard content
   createFromClipboard(text: string, title?: string, categoryId?: string): Observable<ApiResponse<Lecture>> {
-    return this.request('POST', '/lectures/clipboard', { text, title, categoryId });
+    return this.request('POST', '/pages/clipboard', { text, title, categoryId });
   }
 
   // Create from X (Twitter) URL
   createFromX(url: string, categoryId?: string): Observable<ApiResponse<Lecture>> {
-    return this.request('POST', '/lectures/x', { url, categoryId });
+    return this.request('POST', '/pages/x', { url, categoryId });
   }
 
   // ============================================
@@ -476,32 +494,39 @@ export class ApiService {
     return this.request('POST', `/blocks/migrate/${distillationId}`);
   }
 
+  /**
+   * Batch update all blocks for a distillation (auto-save)
+   */
+  updateBlocks(distillationId: string, blocks: Block[]): Observable<ApiResponse<Block[]>> {
+    return this.request('PUT', `/blocks/batch/${distillationId}`, { blocks });
+  }
+
   // ============================================
   // Page Hierarchy
   // ============================================
 
   getPageTree(): Observable<ApiResponse<PageTreeNode[]>> {
-    return this.request('GET', '/lectures/pages/tree');
+    return this.request('GET', '/pages/tree');
   }
 
   createPage(input: CreatePage): Observable<ApiResponse<DistillationWithHierarchy>> {
-    return this.request('POST', '/lectures/pages', input);
+    return this.request('POST', '/pages', input);
   }
 
   updatePage(pageId: string, input: UpdatePage): Observable<ApiResponse<DistillationWithHierarchy>> {
-    return this.request('PUT', `/lectures/pages/${pageId}`, input);
+    return this.request('PUT', `/pages/${pageId}`, input);
   }
 
   movePage(pageId: string, move: MovePage): Observable<{ success: boolean }> {
-    return this.request('PUT', `/lectures/pages/${pageId}/move`, move);
+    return this.request('PUT', `/pages/${pageId}/move`, move);
   }
 
   togglePageCollapse(pageId: string): Observable<ApiResponse<DistillationWithHierarchy>> {
-    return this.request('PUT', `/lectures/pages/${pageId}/collapse`);
+    return this.request('PUT', `/pages/${pageId}/collapse`);
   }
 
   reorderPages(pageIds: string[], parentId?: string | null): Observable<{ success: boolean }> {
-    return this.request('POST', '/lectures/pages/reorder', { pageIds, parentId });
+    return this.request('POST', '/pages/reorder', { pageIds, parentId });
   }
 
   // Upload file with progress tracking
@@ -509,7 +534,7 @@ export class ApiService {
     const result$ = new Subject<ApiResponse<Lecture>>();
 
     this.supabase.getAccessToken().then(token => {
-      const req = new HttpRequest('POST', `${this.baseUrl}/lectures/upload`, formData, {
+      const req = new HttpRequest('POST', `${this.baseUrl}/pages/upload`, formData, {
         headers: new HttpHeaders({
           ...(token && { Authorization: `Bearer ${token}` })
         }),
