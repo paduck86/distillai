@@ -11,8 +11,8 @@ import crypto from 'crypto';
 const genAI = env.GEMINI_API_KEY ? new GoogleGenerativeAI(env.GEMINI_API_KEY) : null;
 const fileManager = env.GEMINI_API_KEY ? new GoogleAIFileManager(env.GEMINI_API_KEY) : null;
 
-const SUMMARIZE_MODEL = 'gemini-2.0-flash';  // 요약용
-const CHAT_MODEL = 'gemini-2.0-flash';       // 채팅용
+const SUMMARIZE_MODEL = 'gemini-3-flash';    // 요약용 (최신 고품질)
+const CHAT_MODEL = 'gemini-2.0-flash';       // 채팅용 (빠른 응답)
 
 // 20MB 이상이면 File API 사용 (inlineData 제한)
 const INLINE_DATA_LIMIT = 20 * 1024 * 1024;
