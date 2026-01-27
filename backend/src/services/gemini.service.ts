@@ -11,8 +11,8 @@ import crypto from 'crypto';
 const genAI = env.GEMINI_API_KEY ? new GoogleGenerativeAI(env.GEMINI_API_KEY) : null;
 const fileManager = env.GEMINI_API_KEY ? new GoogleAIFileManager(env.GEMINI_API_KEY) : null;
 
-const SUMMARIZE_MODEL = 'gemini-1.5-flash';
-const CHAT_MODEL = 'gemini-1.5-flash';
+const SUMMARIZE_MODEL = 'gemini-3-flash';  // 요약용 (품질 우선)
+const CHAT_MODEL = 'gemini-2.0-flash';     // 채팅용 (비용 절감)
 
 // 20MB 이상이면 File API 사용 (inlineData 제한)
 const INLINE_DATA_LIMIT = 20 * 1024 * 1024;
@@ -83,9 +83,12 @@ async function deleteUploadedFile(fileName: string): Promise<void> {
   }
 }
 
+export type SupportedLanguage = 'ko' | 'en';
+
 export async function summarizeLecture(
   audioUrl: string,
-  title: string
+  title: string,
+  language: SupportedLanguage = 'ko'
 ): Promise<SummarizeResult> {
   if (!genAI) {
     throw new AppError(500, 'GEMINI_NOT_CONFIGURED', 'Gemini API is not configured');
@@ -106,52 +109,199 @@ export async function summarizeLecture(
     const mimeType = getMimeTypeFromUrl(audioUrl);
     const fileSizeMB = audioBuffer.byteLength / 1024 / 1024;
 
-    console.log(`Audio file size: ${fileSizeMB.toFixed(2)}MB, MIME: ${mimeType}`);
+    console.log(`Audio file size: ${fileSizeMB.toFixed(2)}MB, MIME: ${mimeType}, Language: ${language}`);
 
-    const prompt = `당신은 전문 속기사이자 강의 요약 전문가입니다.
+    const langInstruction = language === 'ko'
+      ? '모든 응답을 한국어로 작성해주세요.'
+      : 'Write all responses in English.';
 
-이 강의 "${title}"를 듣고 다음 두 가지를 제공해주세요:
+    const prompt = language === 'ko'
+      ? `당신은 Lilys AI 스타일의 강의 요약 전문가입니다.
+
+이 강의 "${title}"를 듣고 다음을 제공해주세요:
 
 ## 1. TRANSCRIPT (전체 전사)
-강의 내용을 있는 그대로 전사해주세요. 자연스러운 한국어로 작성하되, 말하는 사람의 의도를 최대한 살려주세요.
+강의 내용을 있는 그대로 전사해주세요. 강의 원본 언어 그대로 전사하되, 자연스럽게 작성해주세요.
 
-## 2. SUMMARY (구조화된 요약)
-다음 형식으로 상세하게 요약해주세요:
+## 2. SUMMARY (Lilys 스타일 상세 요약)
+${langInstruction}
 
-### 개요
-- 강의의 핵심 주제와 목표를 2-3문장으로 요약
+### 작성 원칙
+1. **가치 중심 인트로**: 독자가 "왜 이걸 들어야 하는지" 알 수 있게 작성
+2. **충분한 깊이**: 각 섹션 최소 10줄 이상, 피상적 설명 금지
+3. **구체적 예시**: 코드, 명령어, 설정 값 등 실제 활용 가능한 정보 포함
+4. **대화체 톤**: 친근하게 설명해주는 느낌 (예: "자바처럼 new를 사용할 필요가 없다", "토큰 비용이 너무 많이 발생하여 결국...")
+5. **소주제(1.1, 1.2) 필수**: 모든 대주제(1, 2, 3) 아래에 **반드시 최소 2개의 소주제(1.1, 1.2)**를 포함. 소주제 없이 대주제만 나열하면 요약 실패.
+6. **타임스탬프 제거**: [00:00:00] 형태 사용하지 않음, 깔끔한 번호 체계만 사용
+7. **원본 충실성**: 강의에서 언급된 구체적 예시, 비유, 화자의 개인적 의견, 실무 경험담을 그대로 살려서 작성
 
-### 목차
-[타임스탬프] 섹션 제목의 형식으로 주요 섹션 나열
+### 상세화 규칙 (매우 중요!!!)
+- **각 불릿 포인트는 3-5줄로 상세히 설명**하세요. 1-2줄 짧은 설명은 금지입니다.
+- **강의에서 언급된 실제 이름을 그대로 사용**하세요 (클래스명, 메서드명, 설정값 등)
+- **"왜" 이렇게 하는지 이유와 배경을 설명**하세요.
+- **실무 팁, 주의사항, 노하우**를 반드시 포함하세요.
 
-### 상세 내용
-각 섹션별로:
+### 나쁜 예시 vs 좋은 예시
+❌ 나쁜 예: "레파지토리 패턴을 사용하여 데이터 액세스 로직을 캡슐화합니다."
+✅ 좋은 예: "레파지토리 레이어는 데이터베이스에서 데이터를 읽고(Read) 쓰고(Write) 하는 기능만 담당하는 레이어이다. IRepositories라는 부모 인터페이스를 미리 만들어 두었으며, 이는 가장 기본적인 CRUD (Get, Add, Change, Delete, Soft Delete) 인터페이스만 정의한다. 특별한 경우가 아니면 이 기본적인 CRUD 기능을 바로 사용한다."
 
-#### [타임스탬프] 섹션 제목
-- **핵심 개념**: 주요 개념 설명
-- **세부 내용**:
-  - 세부 포인트 1
-  - 세부 포인트 2
-- **예시/사례**: 언급된 예시나 사례
-- **중요 인용**: "중요한 발언 그대로 인용"
+❌ 나쁜 예: "DI 컨테이너에 서비스를 등록합니다."
+✅ 좋은 예: "DI 컨테이너 등록은 Helper 폴더 내 DependencyInjection 클래스에서 수행한다. AddScope를 사용하여 등록하면 스코프가 생성될 때 인스턴스를 생성하고, 스코프가 끝날 때 제거하여 메모리를 절약한다. IOfferingService를 인터페이스로, OfferingService를 구현체로 페어 등록하면 DI 시스템 사용 준비가 완료된다."
 
-### 핵심 정리
-- 가장 중요한 takeaway 3-5개 bullet points
+❌ 나쁜 예: "컨트롤러에서 서비스를 호출합니다."
+✅ 좋은 예: "컨트롤러 생성자에 IOfferingService를 주입받기만 하면, DI 컨테이너가 자동으로 OfferingService 인스턴스를 생성하고 주입해준다. 자바처럼 new 키워드를 사용할 필요가 없다. 주입받은 서비스 객체로 OfferingService.AdminGetByID() 등의 비즈니스 로직을 호출한다."
 
-### 추가 학습 키워드
-- 더 깊이 공부하면 좋을 관련 키워드
+### 절대 규칙 (위반 시 요약 실패로 간주)
+1. **1-2줄 불릿은 절대 금지**. 모든 불릿 포인트는 반드시 3줄 이상으로 작성.
+2. **추상적 설명 금지**. "레파지토리 패턴", "서비스 레이어" 같은 추상적 표현 대신 "IOfferingRepository", "OfferingService.AdminGetByID()" 등 실제 이름 사용.
+3. **이유 설명 필수**. 모든 설명에 "왜냐하면", "~하기 위함이다", "~때문에" 등 이유 포함.
+4. **소주제 필수**. 모든 대주제(1, 2, 3...) 아래에 최소 2개의 소주제(1.1, 1.2, 2.1, 2.2...)를 반드시 작성.
+5. **원본 내용 충실 반영**. 강의자가 언급한 구체적인 비유, 예시, 개인 경험, 팁을 요약에 그대로 포함.
+
+### 대화체 톤 예시 (이런 느낌으로 작성)
+- "자바처럼 new를 사용할 필요가 없다"
+- "토큰 비용이 너무 많이 발생하여 결국 다른 방법을 찾았다"
+- "처음에는 이게 뭔 소리인가 싶었는데, 직접 해보니 이해가 됐다"
+- "이걸 안 하면 나중에 디버깅하다 머리 터진다"
+
+### 금지사항
+- 요약 끝에 "이 요약은...", "이상으로...", "Lilys AI 스타일의..." 같은 메타 코멘트 추가 금지
+- 요약 본문만 작성하고 바로 끝낼 것
+
+### 완전한 출력 예시 (반드시 이 형식을 따르세요)
+
+[인트로]
+닷넷(C#) 환경에서 데이터베이스 모델링부터 API 엔드포인트 구축까지의 전 과정을 상세히 배웁니다. 레파지토리 패턴과 비즈니스 레이어를 활용하여 데이터 접근과 비즈니스 로직을 분리하고, DI(의존성 주입) 시스템을 통해 효율적으로 코드를 관리하는 실무 노하우를 익힐 수 있습니다. 반복적인 작업을 자동화하고 데이터 무결성을 유지하는 트랜잭션 처리 방식까지 익혀 견고한 백엔드 시스템을 구축하는 데 필요한 실질적인 지식을 얻게 될 것입니다.
+
+1. 레파지토리 레이어 구축
+레파지토리 레이어는 데이터베이스와의 직접적인 상호작용을 담당하는 계층이다. 비즈니스 로직과 데이터 접근 로직을 분리하여 코드의 유지보수성을 높이기 위함이다.
+
+- **IRepositories 부모 인터페이스 정의**: 프로젝트에서는 IRepositories라는 부모 인터페이스를 미리 만들어 두었으며, 이 인터페이스는 가장 기본적인 CRUD 작업인 Get, Add, Change, Delete, Soft Delete 메서드만 정의한다. 새로운 테이블이 추가되더라도 이 기본 인터페이스를 상속받으면 별도의 구현 없이 CRUD 기능을 바로 사용할 수 있기 때문에 개발 시간을 크게 단축할 수 있다.
+
+- **IOfferingRepository 생성**: 데이터베이스 테이블 이름을 따라 OfferingRepository 폴더를 만들고, 그 안에 IOfferingRepository 인터페이스를 생성한다. 이 인터페이스는 IRepositories<Offering>을 상속받아 오퍼링 테이블에 특화된 레파지토리가 된다. 기본 CRUD 외에 GetWithMembers() 같은 특화 메서드가 필요한 경우에만 추가로 정의하면 된다.
+
+- **OfferingRepository 구현 클래스**: OfferingRepository 클래스를 만들고 부모 클래스인 Repository를 상속받으며, 동시에 IOfferingRepository 인터페이스도 구현한다. 가장 기본적인 생성자만 자동으로 구현하면 레파지토리 구축이 완료된다. 이 OfferingRepository를 통해 Get, GetAll, Add, Edit 등의 메서드를 모두 사용할 수 있게 되어 오퍼링 테이블의 데이터 읽기/쓰기가 가능해진다.
+
+1.1 DI 컨테이너 등록
+- **AddScope 등록 방식**: DI 컨테이너 등록은 Helper 폴더 내 DependencyInjection 클래스에서 수행한다. AddScope를 사용하여 등록하면 스코프(HTTP 요청)가 생성될 때 인스턴스를 생성하고, 스코프가 끝날 때 인스턴스를 제거하여 메모리를 절약한다. IOfferingRepository를 인터페이스로, OfferingRepository를 구현체로 페어 등록하면 DI 시스템 사용 준비가 완료된다.
+
+1.2 레파지토리 사용 패턴
+- **생성자 주입**: 서비스 클래스에서 레파지토리를 사용하려면 생성자에 IOfferingRepository를 선언하기만 하면 된다. 자바처럼 new 키워드로 직접 인스턴스를 생성할 필요가 없다. DI 컨테이너가 알아서 적절한 구현체(OfferingRepository)를 주입해주기 때문이다. 이렇게 하면 테스트할 때 Mock 객체를 쉽게 주입할 수 있어 단위 테스트가 편해진다.
+
+2. 서비스 레이어 구축
+서비스 레이어는 비즈니스 로직을 담당하는 계층이다. 컨트롤러가 직접 레파지토리를 호출하지 않고 서비스를 통해 호출하도록 설계한다.
+
+2.1 서비스 인터페이스 정의
+- **IOfferingService 생성**: Services 폴더에 IOfferingService 인터페이스를 만든다. GetOfferingsWithMembers(), CreateOffering(), DeleteOffering() 등 비즈니스 작업 단위의 메서드를 정의한다. 레파지토리의 CRUD와 달리 서비스 메서드는 "회원과 함께 오퍼링 조회"처럼 비즈니스 의미를 담은 이름을 사용한다.
+
+2.2 서비스 구현 클래스
+- **OfferingService 구현**: OfferingService 클래스를 만들고 IOfferingService를 구현한다. 생성자에서 IOfferingRepository를 주입받아 필드에 저장한다. GetOfferingsWithMembers() 메서드에서는 _repository.GetAll().Include(x => x.Members)처럼 레파지토리 메서드를 조합하여 비즈니스 로직을 구현한다. 여러 레파지토리를 조합하거나 트랜잭션 처리가 필요한 복잡한 로직은 모두 서비스에서 담당한다.
+
+(위 형식과 동일하게 강의 전체 내용을 상세하게 작성하세요. 모든 대주제 아래에 반드시 소주제(1.1, 1.2, 2.1, 2.2...)를 포함하고, 각 불릿은 3줄 이상이어야 합니다.)
 
 ---
 
 응답 형식:
 TRANSCRIPT:
-[전사 내용]
+[전사 내용 - 원본 언어 그대로]
 
 SUMMARY:
-[구조화된 요약]
+[한국어 요약 - 위 규칙을 철저히 준수]
 
-강의가 한국어면 한국어로, 영어면 영어로 응답해주세요.
-타임스탬프는 [HH:MM:SS] 형식으로 표기해주세요.`;
+타임스탬프([00:00:00] 형태)는 사용하지 마세요. 번호(1, 1.1, 2...)만 사용하세요.`
+      : `You are a Lilys AI-style lecture summary expert.
+
+Listen to this lecture "${title}" and provide the following:
+
+## 1. TRANSCRIPT (Full Transcription)
+Transcribe the lecture content as-is in its original language.
+
+## 2. SUMMARY (Lilys-style Detailed Summary)
+${langInstruction}
+
+### Writing Principles
+1. **Value-focused intro**: Help readers understand "why they should listen to this"
+2. **Sufficient depth**: At least 10 lines per section, no superficial explanations
+3. **Concrete examples**: Include code, commands, settings that can be used in practice
+4. **Conversational tone**: Friendly explanation style (e.g., "unlike Java, you don't need to use new", "the token cost was too high so eventually...")
+5. **Subtopics (1.1, 1.2) MANDATORY**: Every main topic (1, 2, 3) MUST have **at least 2 subtopics (1.1, 1.2)**. Summary without subtopics = FAILURE.
+6. **No timestamps**: Don't use [00:00:00] format, use clean numbering only
+7. **Faithfulness to original**: Preserve specific examples, metaphors, speaker's personal opinions, and real-world anecdotes from the lecture exactly as mentioned
+
+### Detail Rules (VERY IMPORTANT!!!)
+- **Each bullet point must be 3-5 lines of detailed explanation**. Short 1-2 line explanations are NOT allowed.
+- **Use actual names mentioned in the lecture** (class names, method names, settings, etc.)
+- **Explain "why"** - include reasons and background for each concept.
+- **Include practical tips, caveats, and real-world advice**.
+
+### Bad Example vs Good Example
+❌ Bad: "Use the repository pattern to encapsulate data access logic."
+✅ Good: "The repository layer is responsible only for reading and writing data from the database. We create a parent interface called IRepositories that defines the most basic CRUD operations (Get, Add, Change, Delete, Soft Delete). Unless there's a special case, you use these basic CRUD functions directly. This separation ensures that business logic doesn't directly interact with database operations."
+
+❌ Bad: "Register services in the DI container."
+✅ Good: "DI container registration is done in the DependencyInjection class within the Helper folder. Using AddScope creates an instance when a scope starts and removes it when the scope ends, saving memory. Register IOfferingService as the interface and OfferingService as the implementation as a pair, and the DI system is ready to use."
+
+❌ Bad: "Call the service from the controller."
+✅ Good: "Simply inject IOfferingService into the controller's constructor, and the DI container automatically creates and injects an OfferingService instance. No need to use the new keyword like in Java. Call business logic methods like OfferingService.AdminGetByID() using the injected service object."
+
+### Absolute Rules (Violation = Summary Failure)
+1. **1-2 line bullets are strictly forbidden**. Every bullet point must be at least 3 lines.
+2. **No abstract descriptions**. Instead of "repository pattern" or "service layer", use actual names like "IOfferingRepository", "OfferingService.AdminGetByID()".
+3. **Reasons are mandatory**. Include "because", "in order to", "this is why" in every explanation.
+4. **Subtopics mandatory**. Every main topic (1, 2, 3...) MUST have at least 2 subtopics (1.1, 1.2, 2.1, 2.2...).
+5. **Faithfulness to original**. Include specific metaphors, examples, personal experiences, and tips mentioned by the lecturer.
+
+### Conversational Tone Examples (Write in this style)
+- "Unlike Java, you don't need to use new"
+- "The token cost was too high so eventually we had to find another way"
+- "At first I had no idea what this meant, but after trying it myself, it clicked"
+- "If you don't do this, you'll tear your hair out debugging later"
+
+### Prohibited
+- Do NOT add meta-comments at the end like "This summary covers...", "In conclusion...", "Lilys AI style..."
+- Just write the summary content and end immediately
+
+### Complete Output Example (You MUST follow this format)
+
+[Intro]
+You will learn the complete process from database modeling to building API endpoints in a .NET (C#) environment. By utilizing the repository pattern and business layer, you'll master the practical know-how of separating data access and business logic, and efficiently managing code through the DI (Dependency Injection) system. You'll also learn transaction handling methods that automate repetitive tasks and maintain data integrity, gaining the practical knowledge needed to build robust backend systems.
+
+1. Building the Repository Layer
+The repository layer is responsible for direct interaction with the database. This separation is designed to increase code maintainability by isolating business logic from data access logic.
+
+- **Defining the IRepositories Parent Interface**: The project has a pre-built parent interface called IRepositories that defines only the most basic CRUD operations: Get, Add, Change, Delete, and Soft Delete methods. When a new table is added, simply inheriting from this base interface allows you to use CRUD functionality immediately without separate implementation, significantly reducing development time.
+
+- **Creating IOfferingRepository**: Create an OfferingRepository folder following the database table name, and inside it, create the IOfferingRepository interface. This interface inherits from IRepositories<Offering> to become a repository specialized for the Offering table. Only define additional specialized methods like GetWithMembers() when needed beyond basic CRUD.
+
+- **OfferingRepository Implementation Class**: Create the OfferingRepository class, inherit from the parent Repository class, and also implement the IOfferingRepository interface. Once you auto-generate just the basic constructor, the repository setup is complete. Through this OfferingRepository, you can use all methods like Get, GetAll, Add, Edit, enabling reading and writing of data from the Offering table.
+
+1.1 DI Container Registration
+- **AddScope Registration Method**: DI container registration is performed in the DependencyInjection class within the Helper folder. Using AddScope creates an instance when a scope (HTTP request) is created and removes it when the scope ends, saving memory. Registering IOfferingRepository as the interface and OfferingRepository as the implementation completes the DI system setup.
+
+1.2 Repository Usage Pattern
+- **Constructor Injection**: To use the repository in a service class, simply declare IOfferingRepository in the constructor. Unlike Java, you don't need to use the new keyword to create instances directly. The DI container automatically injects the appropriate implementation (OfferingRepository). This makes unit testing easier because you can easily inject mock objects when testing.
+
+2. Building the Service Layer
+The service layer handles business logic. Controllers don't call repositories directly - they go through services instead.
+
+2.1 Defining Service Interface
+- **Creating IOfferingService**: Create the IOfferingService interface in the Services folder. Define methods for business operations like GetOfferingsWithMembers(), CreateOffering(), DeleteOffering(). Unlike repository CRUD, service methods use business-meaningful names like "get offerings with members."
+
+2.2 Service Implementation Class
+- **Implementing OfferingService**: Create the OfferingService class and implement IOfferingService. Inject IOfferingRepository through the constructor and store it in a field. In GetOfferingsWithMembers(), combine repository methods like _repository.GetAll().Include(x => x.Members) to implement business logic. Complex logic involving multiple repositories or transactions is all handled in the service.
+
+(Continue writing the entire lecture content in detail following this format. Every main topic MUST have subtopics (1.1, 1.2, 2.1, 2.2...) and each bullet MUST be at least 3 lines.)
+
+---
+
+Response format:
+TRANSCRIPT:
+[Transcription - in original language]
+
+SUMMARY:
+[English summary - strictly follow the rules above]
+
+Do not use timestamps ([00:00:00] format). Use numbers only (1, 1.1, 2...).`;
 
     let result;
 
@@ -382,14 +532,56 @@ ${transcriptSnippet}
 }
 
 /**
+ * 텍스트에서 제목 추출
+ */
+export async function extractTitleFromText(text: string): Promise<string> {
+  if (!genAI) {
+    // AI가 없으면 첫 50자로 대체
+    return text.trim().slice(0, 50) + (text.length > 50 ? '...' : '');
+  }
+
+  try {
+    const model = genAI.getGenerativeModel({ model: CHAT_MODEL });
+
+    const prompt = `다음 텍스트의 핵심 주제를 파악하여 간결하고 명확한 제목을 생성해주세요.
+
+규칙:
+- 제목은 30자 이내로 작성
+- 핵심 키워드를 포함
+- "~에 대하여", "~란 무엇인가" 같은 불필요한 표현 제외
+- 제목만 출력 (따옴표, 설명 없이)
+
+텍스트:
+${text.slice(0, 3000)}
+
+제목:`;
+
+    const result = await model.generateContent(prompt);
+    const title = result.response.text().trim();
+
+    // 제목이 너무 길면 자르기
+    if (title.length > 50) {
+      return title.slice(0, 47) + '...';
+    }
+
+    return title || text.trim().slice(0, 50) + (text.length > 50 ? '...' : '');
+  } catch (error) {
+    console.error('Title extraction failed:', error);
+    // 실패 시 첫 50자로 대체
+    return text.trim().slice(0, 50) + (text.length > 50 ? '...' : '');
+  }
+}
+
+/**
  * 요약과 카테고리 추출을 함께 수행
  */
 export async function summarizeWithCategoryExtraction(
   audioUrl: string,
-  title: string
+  title: string,
+  language: SupportedLanguage = 'ko'
 ): Promise<SummarizeResult> {
   // 먼저 기존 요약 수행
-  const result = await summarizeLecture(audioUrl, title);
+  const result = await summarizeLecture(audioUrl, title, language);
 
   // 요약 결과로 카테고리 추출
   const aiCategory = await extractCategoryAndTags(
@@ -485,7 +677,8 @@ export async function transcribeAudioBuffer(
  */
 export async function summarizeFromTranscript(
   transcript: string,
-  title: string
+  title: string,
+  language: SupportedLanguage = 'ko'
 ): Promise<SummarizeResult> {
   if (!genAI) {
     throw new AppError(500, 'GEMINI_NOT_CONFIGURED', 'Gemini API is not configured');
@@ -494,51 +687,234 @@ export async function summarizeFromTranscript(
   try {
     const model = genAI.getGenerativeModel({ model: SUMMARIZE_MODEL });
 
-    console.log('Generating summary from transcript with Gemini...');
-    const prompt = `당신은 전문 강의 요약 전문가입니다.
-주어진 강의 전사본을 분석하여 구조화된 상세 요약을 제공해주세요.
+    console.log(`Generating summary from transcript with Gemini... Language: ${language}`);
 
-다음 형식으로 요약해주세요:
+    // 임시 제목인지 확인 (끝이 ...로 끝나면 임시 제목)
+    const needsTitleExtraction = title.endsWith('...');
+    const titlePromptKo = needsTitleExtraction
+      ? `\n**중요: 먼저 이 텍스트의 핵심 주제를 파악하여 30자 이내의 간결한 제목을 생성하세요.**
+응답 첫 줄에 다음 형식으로 작성: SUGGESTED_TITLE: [제목]
+(예: SUGGESTED_TITLE: 닷넷 레파지토리 패턴 구축)
 
-### 개요
-- 강의의 핵심 주제와 목표를 2-3문장으로 요약
+그 다음 줄부터 요약을 작성하세요.\n`
+      : '';
+    const titlePromptEn = needsTitleExtraction
+      ? `\n**IMPORTANT: First, identify the core topic and generate a concise title (under 30 characters).**
+Write on the first line in this format: SUGGESTED_TITLE: [title]
+(e.g., SUGGESTED_TITLE: Building .NET Repository Pattern)
 
-### 목차
-[타임스탬프] 섹션 제목의 형식으로 주요 섹션 나열 (타임스탬프는 대략적으로 추정)
+Then write the summary starting from the next line.\n`
+      : '';
 
-### 상세 내용
-각 섹션별로:
-
-#### 섹션 제목
-- **핵심 개념**: 주요 개념 설명
-- **세부 내용**:
-  - 세부 포인트 1
-  - 세부 포인트 2
-- **예시/사례**: 언급된 예시나 사례
-- **중요 인용**: "중요한 발언 그대로 인용"
-
-### 핵심 정리
-- 가장 중요한 takeaway 3-5개 bullet points
-
-### 추가 학습 키워드
-- 더 깊이 공부하면 좋을 관련 키워드
-
----
+    const prompt = language === 'ko'
+      ? `당신은 Lilys AI 스타일의 강의 요약 전문가입니다.
 
 강의 제목: "${title}"
 
 강의 전사본:
 ${transcript}
 
-위 강의를 분석하고 구조화된 요약을 작성해주세요.`;
+---
+${titlePromptKo}
+위 강의를 분석하여 Lilys 스타일의 상세 요약을 **한국어**로 작성해주세요.
+
+### 작성 원칙
+1. **가치 중심 인트로**: 독자가 "왜 이걸 들어야 하는지" 알 수 있게 작성
+2. **충분한 깊이**: 각 섹션 최소 10줄 이상, 피상적 설명 금지
+3. **구체적 예시**: 코드, 명령어, 설정 값 등 실제 활용 가능한 정보 포함
+4. **대화체 톤**: 친근하게 설명해주는 느낌 (예: "자바처럼 new를 사용할 필요가 없다", "토큰 비용이 너무 많이 발생하여 결국...")
+5. **소주제(1.1, 1.2) 필수**: 모든 대주제(1, 2, 3) 아래에 **반드시 최소 2개의 소주제(1.1, 1.2)**를 포함. 소주제 없이 대주제만 나열하면 요약 실패.
+6. **타임스탬프 제거**: [00:00:00] 형태 사용하지 않음, 깔끔한 번호 체계만 사용
+7. **원본 충실성**: 강의에서 언급된 구체적 예시, 비유, 화자의 개인적 의견, 실무 경험담을 그대로 살려서 작성
+
+### 상세화 규칙 (매우 중요!!!)
+- **각 불릿 포인트는 3-5줄로 상세히 설명**하세요. 1-2줄 짧은 설명은 금지입니다.
+- **강의에서 언급된 실제 이름을 그대로 사용**하세요:
+  - 클래스명: IOfferingRepository, OfferingService, DbContext 등
+  - 메서드명: AddScope, GetAll, Include, FirstOrDefault 등
+  - 설정값: "Members", Response<T>, IEnumerable<T> 등
+- **"왜" 이렇게 하는지 이유와 배경을 설명**하세요.
+- **실무 팁, 주의사항, 노하우**를 반드시 포함하세요.
+
+### 나쁜 예시 vs 좋은 예시
+❌ 나쁜 예: "레파지토리 패턴을 사용하여 데이터 액세스 로직을 캡슐화합니다."
+✅ 좋은 예: "레파지토리 레이어는 데이터베이스에서 데이터를 읽고(Read) 쓰고(Write) 하는 기능만 담당하는 레이어이다. IRepositories라는 부모 인터페이스를 미리 만들어 두었으며, 이는 가장 기본적인 CRUD (Get, Add, Change, Delete, Soft Delete) 인터페이스만 정의한다. 특별한 경우가 아니면 이 기본적인 CRUD 기능을 바로 사용한다. 예를 들어 IOfferingRepository 인터페이스는 IRepositories<Offering>을 상속받아 기본 CRUD 외에 GetWithMembers() 같은 특화 메서드만 추가로 정의한다."
+
+❌ 나쁜 예: "서비스 레이어에서 비즈니스 로직을 처리합니다."
+✅ 좋은 예: "서비스 레이어는 비즈니스 로직을 담당하며, 컨트롤러에서 직접 레파지토리를 호출하지 않고 서비스를 통해 호출하도록 설계한다. 예를 들어 OfferingService는 IOfferingRepository를 생성자 주입받아 GetOfferingsWithMembers() 메서드를 구현한다. 이렇게 하면 컨트롤러는 HTTP 요청/응답 처리에만 집중하고, 복잡한 비즈니스 로직은 서비스에서 테스트 가능한 형태로 분리된다."
+
+❌ 나쁜 예: "DI 컨테이너에 서비스를 등록합니다."
+✅ 좋은 예: "DI 컨테이너 등록은 Helper 폴더 내 DependencyInjection 클래스에서 수행한다. AddScope를 사용하여 등록하면 스코프가 생성될 때 인스턴스를 생성하고, 스코프가 끝날 때 제거하여 메모리를 절약한다. IOfferingService를 인터페이스로, OfferingService를 구현체로 페어 등록하면 DI 시스템 사용 준비가 완료된다."
+
+### 절대 규칙 (위반 시 요약 실패로 간주)
+1. **1-2줄 불릿은 절대 금지**. 모든 불릿 포인트는 반드시 3줄 이상으로 작성.
+2. **추상적 설명 금지**. "레파지토리 패턴", "서비스 레이어" 같은 추상적 표현 대신 "IOfferingRepository", "OfferingService.AdminGetByID()" 등 실제 이름 사용.
+3. **이유 설명 필수**. 모든 설명에 "왜냐하면", "~하기 위함이다", "~때문에" 등 이유 포함.
+4. **소주제 필수**. 모든 대주제(1, 2, 3...) 아래에 최소 2개의 소주제(1.1, 1.2, 2.1, 2.2...)를 반드시 작성.
+5. **원본 내용 충실 반영**. 강의자가 언급한 구체적인 비유, 예시, 개인 경험, 팁을 요약에 그대로 포함.
+
+### 대화체 톤 예시 (이런 느낌으로 작성)
+- "자바처럼 new를 사용할 필요가 없다"
+- "토큰 비용이 너무 많이 발생하여 결국 다른 방법을 찾았다"
+- "처음에는 이게 뭔 소리인가 싶었는데, 직접 해보니 이해가 됐다"
+- "이걸 안 하면 나중에 디버깅하다 머리 터진다"
+
+### 금지사항
+- 요약 끝에 "이 요약은...", "이상으로...", "Lilys AI 스타일의..." 같은 메타 코멘트 추가 금지
+- 요약 본문만 작성하고 바로 끝낼 것
+
+### 완전한 출력 예시 (반드시 이 형식을 따르세요)
+
+[인트로]
+닷넷(C#) 환경에서 데이터베이스 모델링부터 API 엔드포인트 구축까지의 전 과정을 상세히 배웁니다. 레파지토리 패턴과 비즈니스 레이어를 활용하여 데이터 접근과 비즈니스 로직을 분리하고, DI(의존성 주입) 시스템을 통해 효율적으로 코드를 관리하는 실무 노하우를 익힐 수 있습니다. 반복적인 작업을 자동화하고 데이터 무결성을 유지하는 트랜잭션 처리 방식까지 익혀 견고한 백엔드 시스템을 구축하는 데 필요한 실질적인 지식을 얻게 될 것입니다.
+
+1. 레파지토리 레이어 구축
+레파지토리 레이어는 데이터베이스와의 직접적인 상호작용을 담당하는 계층이다. 비즈니스 로직과 데이터 접근 로직을 분리하여 코드의 유지보수성을 높이기 위함이다.
+
+- **IRepositories 부모 인터페이스 정의**: 프로젝트에서는 IRepositories라는 부모 인터페이스를 미리 만들어 두었으며, 이 인터페이스는 가장 기본적인 CRUD 작업인 Get, Add, Change, Delete, Soft Delete 메서드만 정의한다. 새로운 테이블이 추가되더라도 이 기본 인터페이스를 상속받으면 별도의 구현 없이 CRUD 기능을 바로 사용할 수 있기 때문에 개발 시간을 크게 단축할 수 있다.
+
+- **IOfferingRepository 생성**: 데이터베이스 테이블 이름을 따라 OfferingRepository 폴더를 만들고, 그 안에 IOfferingRepository 인터페이스를 생성한다. 이 인터페이스는 IRepositories<Offering>을 상속받아 오퍼링 테이블에 특화된 레파지토리가 된다. 기본 CRUD 외에 GetWithMembers() 같은 특화 메서드가 필요한 경우에만 추가로 정의하면 된다.
+
+- **OfferingRepository 구현 클래스**: OfferingRepository 클래스를 만들고 부모 클래스인 Repository를 상속받으며, 동시에 IOfferingRepository 인터페이스도 구현한다. 가장 기본적인 생성자만 자동으로 구현하면 레파지토리 구축이 완료된다. 이 OfferingRepository를 통해 Get, GetAll, Add, Edit 등의 메서드를 모두 사용할 수 있게 되어 오퍼링 테이블의 데이터 읽기/쓰기가 가능해진다.
+
+1.1 DI 컨테이너 등록
+- **AddScope 등록 방식**: DI 컨테이너 등록은 Helper 폴더 내 DependencyInjection 클래스에서 수행한다. AddScope를 사용하여 등록하면 스코프(HTTP 요청)가 생성될 때 인스턴스를 생성하고, 스코프가 끝날 때 인스턴스를 제거하여 메모리를 절약한다. IOfferingRepository를 인터페이스로, OfferingRepository를 구현체로 페어 등록하면 DI 시스템 사용 준비가 완료된다.
+
+1.2 레파지토리 사용 패턴
+- **생성자 주입**: 서비스 클래스에서 레파지토리를 사용하려면 생성자에 IOfferingRepository를 선언하기만 하면 된다. 자바처럼 new 키워드로 직접 인스턴스를 생성할 필요가 없다. DI 컨테이너가 알아서 적절한 구현체(OfferingRepository)를 주입해주기 때문이다. 이렇게 하면 테스트할 때 Mock 객체를 쉽게 주입할 수 있어 단위 테스트가 편해진다.
+
+2. 서비스 레이어 구축
+서비스 레이어는 비즈니스 로직을 담당하는 계층이다. 컨트롤러가 직접 레파지토리를 호출하지 않고 서비스를 통해 호출하도록 설계한다.
+
+2.1 서비스 인터페이스 정의
+- **IOfferingService 생성**: Services 폴더에 IOfferingService 인터페이스를 만든다. GetOfferingsWithMembers(), CreateOffering(), DeleteOffering() 등 비즈니스 작업 단위의 메서드를 정의한다. 레파지토리의 CRUD와 달리 서비스 메서드는 "회원과 함께 오퍼링 조회"처럼 비즈니스 의미를 담은 이름을 사용한다.
+
+2.2 서비스 구현 클래스
+- **OfferingService 구현**: OfferingService 클래스를 만들고 IOfferingService를 구현한다. 생성자에서 IOfferingRepository를 주입받아 필드에 저장한다. GetOfferingsWithMembers() 메서드에서는 _repository.GetAll().Include(x => x.Members)처럼 레파지토리 메서드를 조합하여 비즈니스 로직을 구현한다. 여러 레파지토리를 조합하거나 트랜잭션 처리가 필요한 복잡한 로직은 모두 서비스에서 담당한다.
+
+(위 형식과 동일하게 강의 전체 내용을 상세하게 작성하세요. 모든 대주제 아래에 반드시 소주제(1.1, 1.2, 2.1, 2.2...)를 포함하고, 각 불릿은 3줄 이상이어야 합니다.)
+
+---
+
+타임스탬프([00:00:00] 형태)는 사용하지 마세요. 번호(1, 1.1, 2...)만 사용하세요.
+반드시 한국어로 요약해주세요.`
+      : `You are a Lilys AI-style lecture summary expert.
+
+Lecture title: "${title}"
+
+Lecture transcript:
+${transcript}
+
+---
+${titlePromptEn}
+Analyze this lecture and write a detailed Lilys-style summary in **English**.
+
+### Writing Principles
+1. **Value-focused intro**: Help readers understand "why they should listen to this"
+2. **Sufficient depth**: At least 10 lines per section, no superficial explanations
+3. **Concrete examples**: Include code, commands, settings that can be used in practice
+4. **Conversational tone**: Friendly explanation style (e.g., "unlike Java, you don't need to use new", "the token cost was too high so eventually...")
+5. **Subtopics (1.1, 1.2) MANDATORY**: Every main topic (1, 2, 3) MUST have **at least 2 subtopics (1.1, 1.2)**. Summary without subtopics = FAILURE.
+6. **No timestamps**: Don't use [00:00:00] format, use clean numbering only
+7. **Faithfulness to original**: Preserve specific examples, metaphors, speaker's personal opinions, and real-world anecdotes from the lecture exactly as mentioned
+
+### Detail Rules (VERY IMPORTANT!!!)
+- **Each bullet point must be 3-5 lines of detailed explanation**. Short 1-2 line descriptions are NOT allowed.
+- **Use the actual names mentioned in the lecture**:
+  - Class names: IOfferingRepository, OfferingService, DbContext, etc.
+  - Method names: AddScope, GetAll, Include, FirstOrDefault, etc.
+  - Settings/types: "Members", Response<T>, IEnumerable<T>, etc.
+- **Explain "why" - provide reasoning and background** for each concept.
+- **Include practical tips, caveats, and best practices**.
+
+### Bad vs Good Examples
+❌ Bad: "The repository pattern encapsulates data access logic."
+✅ Good: "The repository layer is dedicated solely to reading and writing data from the database. There's a parent interface called IRepositories that defines only the most basic CRUD operations (Get, Add, Change, Delete, Soft Delete). Unless there's a special case, you use these basic CRUD methods directly. For instance, the IOfferingRepository interface inherits from IRepositories<Offering> and only adds specialized methods like GetWithMembers() on top of the inherited CRUD operations."
+
+❌ Bad: "Business logic is handled in the service layer."
+✅ Good: "The service layer handles business logic, and controllers don't call repositories directly - they go through services instead. For example, OfferingService receives IOfferingRepository through constructor injection and implements the GetOfferingsWithMembers() method. This design allows controllers to focus solely on HTTP request/response handling while complex business logic is separated into testable services."
+
+❌ Bad: "Register services in the DI container."
+✅ Good: "DI container registration is done in the DependencyInjection class within the Helper folder. Using AddScope creates an instance when a scope starts and removes it when the scope ends, saving memory. Register IOfferingService as the interface and OfferingService as the implementation as a pair, and the DI system is ready to use."
+
+### Absolute Rules (Violation = Summary Failure)
+1. **1-2 line bullets are strictly forbidden**. Every bullet point must be at least 3 lines.
+2. **No abstract descriptions**. Instead of "repository pattern" or "service layer", use actual names like "IOfferingRepository", "OfferingService.AdminGetByID()".
+3. **Reasons are mandatory**. Include "because", "in order to", "this is why" in every explanation.
+4. **Subtopics mandatory**. Every main topic (1, 2, 3...) MUST have at least 2 subtopics (1.1, 1.2, 2.1, 2.2...).
+5. **Faithfulness to original**. Include specific metaphors, examples, personal experiences, and tips mentioned by the lecturer.
+
+### Conversational Tone Examples (Write in this style)
+- "Unlike Java, you don't need to use new"
+- "The token cost was too high so eventually we had to find another way"
+- "At first I had no idea what this meant, but after trying it myself, it clicked"
+- "If you don't do this, you'll tear your hair out debugging later"
+
+### Prohibited
+- Do NOT add meta-comments at the end like "This summary covers...", "In conclusion...", "Lilys AI style..."
+- Just write the summary content and end immediately
+
+### Complete Output Example (You MUST follow this format)
+
+[Intro]
+You will learn the complete process from database modeling to building API endpoints in a .NET (C#) environment. By utilizing the repository pattern and business layer, you'll master the practical know-how of separating data access and business logic, and efficiently managing code through the DI (Dependency Injection) system. You'll also learn transaction handling methods that automate repetitive tasks and maintain data integrity, gaining the practical knowledge needed to build robust backend systems.
+
+1. Building the Repository Layer
+The repository layer is responsible for direct interaction with the database. This separation is designed to increase code maintainability by isolating business logic from data access logic.
+
+- **Defining the IRepositories Parent Interface**: The project has a pre-built parent interface called IRepositories that defines only the most basic CRUD operations: Get, Add, Change, Delete, and Soft Delete methods. When a new table is added, simply inheriting from this base interface allows you to use CRUD functionality immediately without separate implementation, significantly reducing development time.
+
+- **Creating IOfferingRepository**: Create an OfferingRepository folder following the database table name, and inside it, create the IOfferingRepository interface. This interface inherits from IRepositories<Offering> to become a repository specialized for the Offering table. Only define additional specialized methods like GetWithMembers() when needed beyond basic CRUD.
+
+- **OfferingRepository Implementation Class**: Create the OfferingRepository class, inherit from the parent Repository class, and also implement the IOfferingRepository interface. Once you auto-generate just the basic constructor, the repository setup is complete. Through this OfferingRepository, you can use all methods like Get, GetAll, Add, Edit, enabling reading and writing of data from the Offering table.
+
+1.1 DI Container Registration
+- **AddScope Registration Method**: DI container registration is performed in the DependencyInjection class within the Helper folder. Using AddScope creates an instance when a scope (HTTP request) is created and removes it when the scope ends, saving memory. Registering IOfferingRepository as the interface and OfferingRepository as the implementation completes the DI system setup.
+
+1.2 Repository Usage Pattern
+- **Constructor Injection**: To use the repository in a service class, simply declare IOfferingRepository in the constructor. Unlike Java, you don't need to use the new keyword to create instances directly. The DI container automatically injects the appropriate implementation (OfferingRepository). This makes unit testing easier because you can easily inject mock objects when testing.
+
+2. Building the Service Layer
+The service layer handles business logic. Controllers don't call repositories directly - they go through services instead.
+
+2.1 Defining Service Interface
+- **Creating IOfferingService**: Create the IOfferingService interface in the Services folder. Define methods for business operations like GetOfferingsWithMembers(), CreateOffering(), DeleteOffering(). Unlike repository CRUD, service methods use business-meaningful names like "get offerings with members."
+
+2.2 Service Implementation Class
+- **Implementing OfferingService**: Create the OfferingService class and implement IOfferingService. Inject IOfferingRepository through the constructor and store it in a field. In GetOfferingsWithMembers(), combine repository methods like _repository.GetAll().Include(x => x.Members) to implement business logic. Complex logic involving multiple repositories or transactions is all handled in the service.
+
+(Continue writing the entire lecture content in detail following this format. Every main topic MUST have subtopics (1.1, 1.2, 2.1, 2.2...) and each bullet MUST be at least 3 lines.)
+
+---
+
+Do not use timestamps ([00:00:00] format). Use numbers only (1, 1.1, 2...).
+Write the summary in English.`;
 
     const result = await model.generateContent(prompt);
-    const summary = result.response.text().trim();
+    let responseText = result.response.text().trim();
+
+    // SUGGESTED_TITLE 파싱 (제목 추출이 필요한 경우)
+    let suggestedTitle: string | undefined;
+    if (needsTitleExtraction) {
+      const titleMatch = responseText.match(/^SUGGESTED_TITLE:\s*(.+)$/m);
+      if (titleMatch?.[1]) {
+        suggestedTitle = titleMatch[1].trim();
+        // 제목 라인 제거
+        responseText = responseText.replace(/^SUGGESTED_TITLE:\s*.+\n*/m, '').trim();
+        console.log(`Extracted suggested title: ${suggestedTitle}`);
+      }
+    }
+
+    // 요약 상단에 제목 추가 (추출된 경우)
+    const summary = suggestedTitle
+      ? `# ${suggestedTitle}\n\n${responseText}`
+      : responseText;
     console.log(`Summary complete. Length: ${summary.length}`);
 
     return {
       transcript,
       summary,
+      suggestedTitle,
     };
   } catch (error) {
     console.error('Gemini summarization error:', error);
@@ -555,9 +931,10 @@ ${transcript}
  */
 export async function summarizeFromTranscriptWithCategory(
   transcript: string,
-  title: string
+  title: string,
+  language: SupportedLanguage = 'ko'
 ): Promise<SummarizeResult> {
-  const result = await summarizeFromTranscript(transcript, title);
+  const result = await summarizeFromTranscript(transcript, title, language);
 
   const aiCategory = await extractCategoryAndTags(
     title,

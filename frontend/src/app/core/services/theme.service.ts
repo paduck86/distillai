@@ -22,8 +22,8 @@ export class ThemeService {
       return saved;
     }
 
-    // 기본값: 다크모드
-    return 'dark';
+    // 기본값: 라이트모드
+    return 'light';
   }
 
   private applyTheme(theme: Theme): void {

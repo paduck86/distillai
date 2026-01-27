@@ -262,34 +262,66 @@ export async function updateSummaryWithCategory(
     aiSuggestedTags?: string[];
     aiConfidence?: number;
     aiReasoning?: string;
+    title?: string;  // AI 추천 제목 (텍스트 입력 시)
   }
 ): Promise<Distillation> {
-  const row = await queryOne<DistillationRow>(
-    `UPDATE distillai.distillations
-     SET
-       summary_md = $1,
-       full_transcript = $2,
-       ai_suggested_category_id = $3,
-       ai_suggested_tags = $4,
-       ai_confidence = $5,
-       ai_reasoning = $6,
-       category_confirmed = false,
-       status = 'crystallized',
-       processed_at = NOW(),
-       updated_at = NOW()
-     WHERE id = $7 AND user_id = $8
-     RETURNING *`,
-    [
-      summary.summaryMd,
-      summary.fullTranscript,
-      summary.aiCategoryId ?? null,
-      summary.aiSuggestedTags ?? [],
-      summary.aiConfidence ?? null,
-      summary.aiReasoning ?? null,
-      distillationId,
-      userId,
-    ]
-  );
+  // title이 있으면 포함, 없으면 제외하는 동적 쿼리
+  const hasTitle = !!summary.title;
+  const query = hasTitle
+    ? `UPDATE distillai.distillations
+       SET
+         title = $1,
+         summary_md = $2,
+         full_transcript = $3,
+         ai_suggested_category_id = $4,
+         ai_suggested_tags = $5,
+         ai_confidence = $6,
+         ai_reasoning = $7,
+         category_confirmed = false,
+         status = 'crystallized',
+         processed_at = NOW(),
+         updated_at = NOW()
+       WHERE id = $8 AND user_id = $9
+       RETURNING *`
+    : `UPDATE distillai.distillations
+       SET
+         summary_md = $1,
+         full_transcript = $2,
+         ai_suggested_category_id = $3,
+         ai_suggested_tags = $4,
+         ai_confidence = $5,
+         ai_reasoning = $6,
+         category_confirmed = false,
+         status = 'crystallized',
+         processed_at = NOW(),
+         updated_at = NOW()
+       WHERE id = $7 AND user_id = $8
+       RETURNING *`;
+
+  const params = hasTitle
+    ? [
+        summary.title,
+        summary.summaryMd,
+        summary.fullTranscript,
+        summary.aiCategoryId ?? null,
+        summary.aiSuggestedTags ?? [],
+        summary.aiConfidence ?? null,
+        summary.aiReasoning ?? null,
+        distillationId,
+        userId,
+      ]
+    : [
+        summary.summaryMd,
+        summary.fullTranscript,
+        summary.aiCategoryId ?? null,
+        summary.aiSuggestedTags ?? [],
+        summary.aiConfidence ?? null,
+        summary.aiReasoning ?? null,
+        distillationId,
+        userId,
+      ];
+
+  const row = await queryOne<DistillationRow>(query, params);
 
   if (!row) {
     throw new NotFoundError('Distillation');
@@ -331,6 +363,40 @@ export async function confirmCategory(
 
   if (!row) {
     throw new NotFoundError('Distillation');
+  }
+
+  return mapDistillationRow(row);
+}
+
+/**
+ * 텍스트와 함께 Distillation 생성 (텍스트 요약용)
+ */
+export async function createDistillationWithText(
+  userId: string,
+  input: CreateDistillation & { text: string }
+): Promise<Distillation> {
+  const hasCategoryId = !!input.categoryId;
+
+  const row = await queryOne<DistillationRow>(
+    `INSERT INTO distillai.distillations (user_id, title, description, folder_id, tags, source_type, source_url, ai_suggested_category_id, category_confirmed, full_transcript, status)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'pending')
+     RETURNING *`,
+    [
+      userId,
+      input.title,
+      input.description ?? null,
+      input.folderId ?? null,
+      input.tags ?? [],
+      'text',
+      null,
+      input.categoryId ?? null,
+      hasCategoryId,
+      input.text,
+    ]
+  );
+
+  if (!row) {
+    throw new Error('Failed to create distillation');
   }
 
   return mapDistillationRow(row);

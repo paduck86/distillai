@@ -87,6 +87,29 @@ body {
   background: var(--color-border);
 }
 
+// Thin scrollbar variant
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-surface-overlay) transparent;
+
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: var(--color-surface-overlay);
+    border-radius: 3px;
+
+    &:hover {
+      background: var(--color-border);
+    }
+  }
+}
+
 // Background patterns
 .bg-dot-pattern {
   background-image: radial-gradient(circle, rgba(255, 255, 255, 0.3) 1px, transparent 1px);
@@ -150,5 +173,141 @@ body {
 
   .bg-theme-overlay {
     background-color: var(--color-surface-overlay);
+  }
+
+  // Inline code highlighting (Lilys style)
+  .inline-code {
+    @apply px-1.5 py-0.5 rounded font-mono text-sm;
+    background-color: var(--color-surface-overlay);
+    color: var(--color-primary);
+    font-family: var(--font-mono);
+  }
+
+  // Reference numbers
+  .reference-num {
+    @apply text-cyan-400 text-xs cursor-pointer hover:text-cyan-300 ml-0.5;
+  }
+
+  // Highlight box (for important notes)
+  .highlight-box {
+    @apply p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 my-3;
+  }
+
+  // Keyword highlight (bold text in summaries)
+  .keyword-highlight {
+    @apply text-primary font-semibold;
+    text-shadow: 0 0 20px rgba(79, 70, 229, 0.3);
+  }
+
+  // TOC item hover effect
+  .toc-item {
+    @apply relative transition-all duration-200;
+
+    &:hover {
+      @apply text-primary;
+      transform: translateX(4px);
+    }
+
+    &::before {
+      content: '';
+      @apply absolute left-0 top-1/2 -translate-y-1/2 w-0 h-0.5 bg-primary transition-all duration-200;
+    }
+
+    &:hover::before {
+      @apply w-2;
+    }
+  }
+
+  // Section card hover
+  .section-card {
+    @apply transition-all duration-200;
+
+    &:hover {
+      @apply bg-surface-elevated/50;
+    }
+  }
+
+  // Light mode specific overrides for summary content
+  .summary-section-card {
+    background-color: var(--color-surface-elevated);
+    border-color: var(--color-border);
+
+    &:hover {
+      border-color: var(--color-primary);
+    }
+  }
+
+  // TOC container for both modes
+  .toc-container {
+    background-color: var(--color-surface-elevated);
+    border-color: var(--color-border);
+  }
+
+  // Intro box for both modes
+  .intro-box {
+    background: linear-gradient(to right, rgba(79, 70, 229, 0.1), transparent);
+    border-left: 4px solid var(--color-primary);
+  }
+
+  // Section number badge
+  .section-number-badge {
+    @apply bg-primary text-white;
+  }
+
+  // Subsection marker
+  .subsection-marker {
+    background-color: rgba(79, 70, 229, 0.1);
+    border-color: rgba(79, 70, 229, 0.2);
+    color: var(--color-primary);
+  }
+}
+
+// Light mode overrides
+:root.light {
+  // TOC item in light mode
+  .toc-item {
+    &:hover {
+      color: var(--color-primary);
+    }
+  }
+
+  // Prose styling for light mode
+  .prose-light {
+    --tw-prose-body: var(--color-text-secondary);
+    --tw-prose-headings: var(--color-text-primary);
+    --tw-prose-bold: var(--color-text-primary);
+    --tw-prose-bullets: var(--color-primary);
+  }
+
+  // Section card in light mode
+  .summary-section-card {
+    background-color: #FFFFFF;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+
+    &:hover {
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+  }
+
+  // Highlight box in light mode
+  .highlight-box {
+    background-color: rgba(245, 158, 11, 0.08);
+    border-color: rgba(245, 158, 11, 0.3);
+  }
+
+  // Inline code in light mode
+  .inline-code {
+    background-color: rgba(79, 70, 229, 0.1);
+    color: #4F46E5;
+  }
+
+  // TOC vertical line
+  .toc-container .border-l-2 {
+    border-color: var(--color-border);
+  }
+
+  // Section description border
+  .section-description {
+    border-color: var(--color-border);
   }
 }

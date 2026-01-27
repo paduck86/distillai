@@ -91,6 +91,9 @@ router.post('/youtube', lectureController.createFromYoutube);
 // External URL import
 router.post('/url', lectureController.createFromUrl);
 
+// Text import
+router.post('/text', lectureController.createFromText);
+
 // File upload (creates new distillation + uploads file)
 router.post('/upload', upload.single('file'), lectureController.uploadFile);
 

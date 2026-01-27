@@ -18,12 +18,12 @@ import { SidebarComponent } from './components/sidebar.component';
   imports: [CommonModule, FormsModule, ButtonModule, AvatarModule, DialogModule, SidebarComponent],
   template: `
     <div class="h-screen flex flex-col transition-colors duration-200"
-         [class]="theme.isDark() ? 'bg-zinc-950 text-zinc-100' : 'bg-zinc-50 text-zinc-900'">
+         [class]="theme.isDark() ? 'bg-zinc-950 text-zinc-100' : 'bg-gradient-to-br from-slate-50 to-zinc-100 text-zinc-900'">
       <!-- Header -->
       <header class="border-b shrink-0 backdrop-blur-md transition-colors z-50"
               [class]="theme.isDark()
                 ? 'border-zinc-800 bg-zinc-950/90'
-                : 'border-zinc-200 bg-white/90'">
+                : 'border-zinc-200/70 bg-white/80 shadow-sm'">
         <div class="px-4 md:px-6 py-3 flex items-center justify-between">
           <!-- Left: Mobile Menu + Logo -->
           <div class="flex items-center gap-3">
@@ -157,18 +157,18 @@ import { SidebarComponent } from './components/sidebar.component';
                     (keyup.enter)="submitYoutubeUrl()"
                     type="url"
                     placeholder="https://youtube.com/watch?v=abc"
-                    class="w-full px-4 py-4 rounded-xl text-base border-2 transition-colors"
+                    class="w-full px-4 py-4 rounded-xl text-base border-2 transition-all outline-none"
                     [class]="theme.isDark()
                       ? 'bg-zinc-900 border-zinc-700 focus:border-cyan-500 text-white placeholder-zinc-500'
-                      : 'bg-white border-zinc-200 focus:border-zinc-400 text-zinc-900 placeholder-zinc-400'" />
+                      : 'bg-white border-zinc-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 text-zinc-900 placeholder-zinc-400 shadow-sm'" />
                   @if (youtubeUrl()) {
                     <button
                       (click)="submitYoutubeUrl()"
                       [disabled]="youtubeLoading()"
-                      class="absolute right-2 top-1/2 -translate-y-1/2 px-4 py-2 rounded-lg font-medium transition-colors"
+                      class="absolute right-2 top-1/2 -translate-y-1/2 px-4 py-2 rounded-lg font-medium transition-all"
                       [class]="theme.isDark()
                         ? 'bg-cyan-500 hover:bg-cyan-400 text-zinc-900'
-                        : 'bg-zinc-900 hover:bg-zinc-800 text-white'">
+                        : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-md hover:shadow-lg'">
                       @if (youtubeLoading()) {
                         <i class="pi pi-spin pi-spinner"></i>
                       } @else {
@@ -186,10 +186,10 @@ import { SidebarComponent } from './components/sidebar.component';
             <!-- PDF Tab -->
             @if (selectedImportTab() === 'pdf') {
               <div
-                class="border-2 border-dashed rounded-xl p-5 text-center transition-colors cursor-pointer"
+                class="border-2 border-dashed rounded-xl p-5 text-center transition-all cursor-pointer"
                 [class]="theme.isDark()
                   ? 'border-zinc-700 hover:border-orange-500/50 bg-zinc-900/50'
-                  : 'border-zinc-300 hover:border-orange-400 bg-zinc-50'"
+                  : 'border-zinc-300 hover:border-orange-400 bg-white shadow-sm hover:shadow-md'"
                 (click)="pdfInputRef?.nativeElement?.click()"
                 (dragover)="onDragOver($event)"
                 (drop)="onPdfDrop($event)">
@@ -199,13 +199,13 @@ import { SidebarComponent } from './components/sidebar.component';
                      [class]="theme.isDark() ? 'text-orange-400' : 'text-orange-600'"></i>
                 </div>
                 <button
-                  class="px-5 py-2.5 rounded-lg font-medium mb-2 transition-colors text-sm"
+                  class="px-5 py-2.5 rounded-lg font-medium mb-2 transition-all text-sm shadow-md hover:shadow-lg"
                   [class]="theme.isDark()
                     ? 'bg-orange-500 hover:bg-orange-400 text-white'
                     : 'bg-orange-500 hover:bg-orange-600 text-white'">
                   PDF 업로드
                 </button>
-                <p class="text-xs opacity-50">
+                <p class="text-xs" [class]="theme.isDark() ? 'opacity-50' : 'text-zinc-500'">
                   또는 여기에 PDF 파일을 드롭하세요
                 </p>
               </div>
@@ -217,6 +217,44 @@ import { SidebarComponent } from './components/sidebar.component';
                 class="hidden" />
             }
 
+            <!-- Text Tab -->
+            @if (selectedImportTab() === 'text') {
+              <div class="space-y-4">
+                <textarea
+                  [(ngModel)]="textContent"
+                  placeholder="요약할 텍스트를 입력하세요... (최소 50자)"
+                  rows="8"
+                  class="w-full px-4 py-4 rounded-xl text-base border-2 transition-all outline-none resize-none"
+                  [class]="theme.isDark()
+                    ? 'bg-zinc-900 border-zinc-700 focus:border-cyan-500 text-white placeholder-zinc-500'
+                    : 'bg-white border-zinc-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 text-zinc-900 placeholder-zinc-400 shadow-sm'">
+                </textarea>
+                <div class="flex items-center justify-between">
+                  <span class="text-sm opacity-50">
+                    {{ textContent().length }}자 입력됨
+                    @if (textContent().length > 0 && textContent().length < 50) {
+                      <span class="text-amber-500">(최소 50자 필요)</span>
+                    }
+                  </span>
+                  <button
+                    (click)="submitText()"
+                    [disabled]="textContent().length < 50 || textLoading()"
+                    class="px-5 py-2.5 rounded-lg font-medium transition-all disabled:opacity-50"
+                    [class]="theme.isDark()
+                      ? 'bg-cyan-500 hover:bg-cyan-400 text-zinc-900'
+                      : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-md hover:shadow-lg'">
+                    @if (textLoading()) {
+                      <i class="pi pi-spin pi-spinner mr-2"></i>
+                    }
+                    분석하기
+                  </button>
+                </div>
+                @if (textError()) {
+                  <p class="text-sm text-red-500">{{ textError() }}</p>
+                }
+              </div>
+            }
+
             <!-- Website Tab -->
             @if (selectedImportTab() === 'website') {
               <div class="space-y-4">
@@ -226,18 +264,18 @@ import { SidebarComponent } from './components/sidebar.component';
                     (keyup.enter)="submitExternalUrl()"
                     type="url"
                     placeholder="https://www.example.com"
-                    class="w-full px-4 py-4 rounded-xl text-base border-2 transition-colors"
+                    class="w-full px-4 py-4 rounded-xl text-base border-2 transition-all outline-none"
                     [class]="theme.isDark()
                       ? 'bg-zinc-900 border-zinc-700 focus:border-cyan-500 text-white placeholder-zinc-500'
-                      : 'bg-white border-zinc-200 focus:border-zinc-400 text-zinc-900 placeholder-zinc-400'" />
+                      : 'bg-white border-zinc-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 text-zinc-900 placeholder-zinc-400 shadow-sm'" />
                   @if (externalUrl()) {
                     <button
                       (click)="submitExternalUrl()"
                       [disabled]="urlLoading()"
-                      class="absolute right-2 top-1/2 -translate-y-1/2 px-4 py-2 rounded-lg font-medium transition-colors"
+                      class="absolute right-2 top-1/2 -translate-y-1/2 px-4 py-2 rounded-lg font-medium transition-all"
                       [class]="theme.isDark()
                         ? 'bg-cyan-500 hover:bg-cyan-400 text-zinc-900'
-                        : 'bg-zinc-900 hover:bg-zinc-800 text-white'">
+                        : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-md hover:shadow-lg'">
                       @if (urlLoading()) {
                         <i class="pi pi-spin pi-spinner"></i>
                       } @else {
@@ -255,21 +293,26 @@ import { SidebarComponent } from './components/sidebar.component';
             <!-- File Upload Tab (Audio/Video) -->
             @if (selectedImportTab() === 'file') {
               <div
-                class="border-2 border-dashed rounded-xl p-5 text-center transition-colors cursor-pointer"
+                class="border-2 border-dashed rounded-xl p-5 text-center transition-all cursor-pointer"
                 [class]="theme.isDark()
                   ? 'border-zinc-700 hover:border-zinc-600 bg-zinc-900/50'
-                  : 'border-zinc-300 hover:border-zinc-400 bg-zinc-50'"
+                  : 'border-zinc-300 hover:border-purple-400 bg-white shadow-sm hover:shadow-md'"
                 (click)="fileInputRef?.nativeElement?.click()"
                 (dragover)="onDragOver($event)"
                 (drop)="onFileDrop($event)">
+                <div class="w-12 h-12 rounded-full mx-auto mb-3 flex items-center justify-center"
+                     [class]="theme.isDark() ? 'bg-purple-500/20' : 'bg-purple-100'">
+                  <i class="pi pi-file text-xl"
+                     [class]="theme.isDark() ? 'text-purple-400' : 'text-purple-600'"></i>
+                </div>
                 <button
-                  class="px-5 py-2.5 rounded-lg font-medium mb-2 transition-colors text-sm"
+                  class="px-5 py-2.5 rounded-lg font-medium mb-2 transition-all text-sm"
                   [class]="theme.isDark()
                     ? 'bg-white text-zinc-900 hover:bg-zinc-100'
-                    : 'bg-zinc-900 text-white hover:bg-zinc-800'">
+                    : 'bg-purple-600 text-white hover:bg-purple-700 shadow-md hover:shadow-lg'">
                   업로드
                 </button>
-                <p class="text-xs opacity-50">
+                <p class="text-xs" [class]="theme.isDark() ? 'opacity-50' : 'text-zinc-500'">
                   또는 여기에 파일을 드롭하세요 (.mp3 / .mp4 / .wav 등)
                 </p>
               </div>
@@ -285,19 +328,19 @@ import { SidebarComponent } from './components/sidebar.component';
             @if (selectedImportTab() === 'recording') {
               <div
                 class="border-2 border-dashed rounded-xl p-5 text-center transition-colors"
-                [class]="theme.isDark() ? 'border-zinc-700 bg-zinc-900/50' : 'border-zinc-300 bg-zinc-50'">
+                [class]="theme.isDark() ? 'border-zinc-700 bg-zinc-900/50' : 'border-zinc-300 bg-white shadow-sm'">
                 <div class="w-12 h-12 rounded-full mx-auto mb-3 flex items-center justify-center"
-                     [class]="theme.isDark() ? 'bg-cyan-500/20' : 'bg-zinc-200'">
+                     [class]="theme.isDark() ? 'bg-cyan-500/20' : 'bg-indigo-100'">
                   <i class="pi pi-microphone text-xl"
-                     [class]="theme.isDark() ? 'text-cyan-400' : 'text-zinc-600'"></i>
+                     [class]="theme.isDark() ? 'text-cyan-400' : 'text-indigo-600'"></i>
                 </div>
-                <p class="mb-3 text-sm opacity-70">브라우저 탭의 오디오를 실시간으로 캡처합니다</p>
+                <p class="mb-3 text-sm" [class]="theme.isDark() ? 'opacity-70' : 'text-zinc-600'">브라우저 탭의 오디오를 실시간으로 캡처합니다</p>
                 <button
                   (click)="goToRecord()"
-                  class="px-5 py-2.5 rounded-lg font-medium transition-colors text-sm"
+                  class="px-5 py-2.5 rounded-lg font-medium transition-all text-sm"
                   [class]="theme.isDark()
                     ? 'bg-cyan-500 hover:bg-cyan-400 text-zinc-900'
-                    : 'bg-zinc-900 hover:bg-zinc-800 text-white'">
+                    : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-md hover:shadow-lg'">
                   <i class="pi pi-play mr-2"></i>
                   녹음 시작
                 </button>
@@ -392,19 +435,20 @@ import { SidebarComponent } from './components/sidebar.component';
           } @else if (distillations().length === 0) {
             <!-- Empty State -->
             <div class="text-center py-20 rounded-2xl border-2 border-dashed"
-                 [class]="theme.isDark() ? 'border-zinc-800' : 'border-zinc-200'">
+                 [class]="theme.isDark() ? 'border-zinc-800' : 'border-zinc-300 bg-white/50'">
               <div class="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4"
-                   [class]="theme.isDark() ? 'bg-zinc-800' : 'bg-zinc-100'">
-                <i class="pi pi-inbox text-2xl opacity-40"></i>
+                   [class]="theme.isDark() ? 'bg-zinc-800' : 'bg-indigo-100'">
+                <i class="pi pi-inbox text-2xl"
+                   [class]="theme.isDark() ? 'opacity-40' : 'text-indigo-600'"></i>
               </div>
               <h3 class="text-lg font-medium mb-2">아직 프로젝트가 없습니다</h3>
-              <p class="opacity-50 mb-6">첫 번째 프로젝트를 만들어보세요!</p>
+              <p class="mb-6" [class]="theme.isDark() ? 'opacity-50' : 'text-zinc-500'">첫 번째 프로젝트를 만들어보세요!</p>
               <button
                 (click)="isNewProjectMode.set(true)"
-                class="px-5 py-2.5 rounded-xl font-medium transition-colors"
+                class="px-5 py-2.5 rounded-xl font-medium transition-all"
                 [class]="theme.isDark()
                   ? 'bg-cyan-500 hover:bg-cyan-400 text-zinc-900'
-                  : 'bg-zinc-900 hover:bg-zinc-800 text-white'">
+                  : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-md hover:shadow-lg'">
                 <i class="pi pi-plus mr-2"></i>
                 시작하기
               </button>
@@ -418,7 +462,7 @@ import { SidebarComponent } from './components/sidebar.component';
                     class="group relative rounded-xl p-5 cursor-pointer transition-all border"
                     [class]="theme.isDark()
                       ? 'bg-zinc-900 border-zinc-800 hover:border-zinc-700 hover:bg-zinc-800/50'
-                      : 'bg-white border-zinc-200 hover:border-zinc-300 hover:shadow-lg'"
+                      : 'bg-white border-zinc-200/60 shadow-sm hover:shadow-lg hover:border-zinc-300 hover:-translate-y-0.5'"
                     (click)="openDistillation(item.id)">
                     <!-- Delete Button -->
                     <button
@@ -930,6 +974,7 @@ export class DashboardComponent implements OnInit {
     { id: 'website', label: '웹사이트', icon: 'pi-globe', color: '#3b82f6' },
     { id: 'file', label: '영상 / 음성 파일', icon: 'pi-file', color: '#8b5cf6' },
     { id: 'recording', label: '실시간 녹음', icon: 'pi-microphone', color: '#06b6d4' },
+    { id: 'text', label: '텍스트', icon: 'pi-align-left', color: '#10b981' },
   ];
   selectedImportTab = signal<string>('youtube');
 
@@ -960,6 +1005,11 @@ export class DashboardComponent implements OnInit {
   externalUrl = signal('');
   urlError = signal('');
   urlLoading = signal(false);
+
+  // Text
+  textContent = signal('');
+  textError = signal('');
+  textLoading = signal(false);
 
   // Delete
   deleteTarget = signal<Distillation | null>(null);
@@ -994,10 +1044,11 @@ export class DashboardComponent implements OnInit {
     { label: '전체', value: null, icon: 'pi-list', color: '#71717a' },
     { label: '유튜브', value: 'youtube' as SourceType, icon: 'pi-youtube', color: '#dc2626' },
     { label: 'PDF', value: 'pdf' as SourceType, icon: 'pi-file-pdf', color: '#f97316' },
-    { label: '음성 파일', value: 'audio' as SourceType, icon: 'pi-volume-up', color: '#10b981' },
-    { label: '영상 파일', value: 'video' as SourceType, icon: 'pi-video', color: '#8b5cf6' },
     { label: '웹사이트', value: 'url' as SourceType, icon: 'pi-link', color: '#3b82f6' },
+    { label: '음성 파일', value: 'audio' as SourceType, icon: 'pi-volume-up', color: '#22c55e' },
+    { label: '영상 파일', value: 'video' as SourceType, icon: 'pi-video', color: '#8b5cf6' },
     { label: '녹음', value: 'recording' as SourceType, icon: 'pi-microphone', color: '#06b6d4' },
+    { label: '텍스트', value: 'text' as SourceType, icon: 'pi-align-left', color: '#10b981' },
   ];
 
   ngOnInit() {
@@ -1039,14 +1090,14 @@ export class DashboardComponent implements OnInit {
 
   getSourceTypeIcon(type: SourceType | undefined): string {
     const map: Record<string, string> = {
-      youtube: 'pi-youtube', audio: 'pi-volume-up', video: 'pi-video', url: 'pi-link', recording: 'pi-microphone', pdf: 'pi-file-pdf', website: 'pi-globe', text: 'pi-file'
+      youtube: 'pi-youtube', audio: 'pi-volume-up', video: 'pi-video', url: 'pi-link', recording: 'pi-microphone', pdf: 'pi-file-pdf', website: 'pi-globe', text: 'pi-align-left'
     };
     return map[type || ''] || 'pi-microphone';
   }
 
   getSourceTypeColor(type: SourceType | undefined): string {
     const map: Record<string, string> = {
-      youtube: '#dc2626', audio: '#10b981', video: '#8b5cf6', url: '#3b82f6', recording: '#06b6d4', pdf: '#f97316', website: '#3b82f6', text: '#71717a'
+      youtube: '#dc2626', audio: '#22c55e', video: '#8b5cf6', url: '#3b82f6', recording: '#06b6d4', pdf: '#f97316', website: '#3b82f6', text: '#10b981'
     };
     return map[type || ''] || '#06b6d4';
   }
@@ -1067,6 +1118,7 @@ export class DashboardComponent implements OnInit {
     this.selectedImportTab.set(tabId);
     this.youtubeError.set('');
     this.urlError.set('');
+    this.textError.set('');
   }
 
   onDragOver(event: DragEvent) {
@@ -1114,7 +1166,7 @@ export class DashboardComponent implements OnInit {
 
     const formData = new FormData();
     formData.append('file', file);
-    formData.append('title', file.name.replace(/\.pdf$/i, ''));
+    formData.append('title', this.cleanFilename(file.name));
     formData.append('sourceType', 'pdf');
     const categoryId = this.folderState.selectedCategoryId();
     if (categoryId) formData.append('categoryId', categoryId);
@@ -1132,7 +1184,7 @@ export class DashboardComponent implements OnInit {
     });
   }
 
-  handleFileUpload(file: File) {
+  async handleFileUpload(file: File) {
     if (file.size > 500 * 1024 * 1024) {
       alert('파일 크기는 500MB를 초과할 수 없습니다.');
       return;
@@ -1147,10 +1199,16 @@ export class DashboardComponent implements OnInit {
     this.uploadLoading.set(true);
     this.showUploadDialog = true;
 
+    // Extract duration from audio/video file
+    const durationSeconds = await this.getMediaDuration(file);
+
     const formData = new FormData();
     formData.append('file', file);
-    formData.append('title', file.name.replace(/\.[^/.]+$/, ''));
+    formData.append('title', this.cleanFilename(file.name));
     formData.append('sourceType', type);
+    if (durationSeconds) {
+      formData.append('durationSeconds', String(Math.round(durationSeconds)));
+    }
     const categoryId = this.folderState.selectedCategoryId();
     if (categoryId) formData.append('categoryId', categoryId);
 
@@ -1164,6 +1222,51 @@ export class DashboardComponent implements OnInit {
         this.uploadError.set(err.error?.message || '업로드 실패');
         this.uploadLoading.set(false);
       }
+    });
+  }
+
+  /**
+   * Clean filename for display: remove extension, replace _ and - with spaces
+   * Adds '...' suffix to indicate this is a temporary title for AI to replace
+   */
+  private cleanFilename(filename: string): string {
+    return filename
+      .replace(/\.[^/.]+$/, '')     // Remove extension
+      .replace(/[_-]+/g, ' ')       // Replace _ and - with spaces
+      .replace(/\s+/g, ' ')         // Collapse multiple spaces
+      .trim() + '...';              // Add ... for AI title extraction
+  }
+
+  private getMediaDuration(file: File): Promise<number | null> {
+    return new Promise((resolve) => {
+      const url = URL.createObjectURL(file);
+      const media = file.type.startsWith('video/')
+        ? document.createElement('video')
+        : document.createElement('audio');
+
+      media.preload = 'metadata';
+
+      media.onloadedmetadata = () => {
+        URL.revokeObjectURL(url);
+        if (isFinite(media.duration) && media.duration > 0) {
+          resolve(media.duration);
+        } else {
+          resolve(null);
+        }
+      };
+
+      media.onerror = () => {
+        URL.revokeObjectURL(url);
+        resolve(null);
+      };
+
+      // Timeout fallback
+      setTimeout(() => {
+        URL.revokeObjectURL(url);
+        resolve(null);
+      }, 5000);
+
+      media.src = url;
     });
   }
 
@@ -1224,6 +1327,27 @@ export class DashboardComponent implements OnInit {
     this.api.createFromUrl(url, categoryId).subscribe({
       next: (res) => { this.urlLoading.set(false); this.showUrlDialog = false; this.router.navigate(['/lecture', res.data.id]); },
       error: (err) => { this.urlError.set(err.error?.message || '가져오기 실패'); this.urlLoading.set(false); }
+    });
+  }
+
+  submitText() {
+    const text = this.textContent().trim();
+    if (text.length < 50) {
+      this.textError.set('텍스트는 최소 50자 이상이어야 합니다.');
+      return;
+    }
+    this.textLoading.set(true); this.textError.set('');
+    const categoryId = this.folderState.selectedCategoryId() || undefined;
+    this.api.createFromText(text, undefined, categoryId).subscribe({
+      next: (res) => {
+        this.textLoading.set(false);
+        this.textContent.set('');
+        this.router.navigate(['/lecture', res.data.id]);
+      },
+      error: (err) => {
+        this.textError.set(err.error?.message || '텍스트 처리 실패');
+        this.textLoading.set(false);
+      }
     });
   }
 

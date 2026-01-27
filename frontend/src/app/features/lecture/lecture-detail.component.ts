@@ -4,6 +4,8 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { ButtonModule } from 'primeng/button';
 import { ApiService, Distillation, ChatMessage, CategoryWithCount } from '../../core/services/api.service';
+import { ThemeService } from '../../core/services/theme.service';
+import { SupabaseService } from '../../core/services/supabase.service';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { marked } from 'marked';
 
@@ -31,37 +33,170 @@ interface ActionItem {
   standalone: true,
   imports: [CommonModule, FormsModule, ButtonModule],
   template: `
-    <div class="h-screen bg-surface flex flex-col md:flex-row">
+    <div class="h-screen flex flex-col md:flex-row transition-colors duration-200 relative"
+         [class]="theme.isDark() ? 'bg-zinc-950 text-zinc-100' : 'bg-gradient-to-br from-slate-50 to-zinc-100 text-zinc-900'">
+
+      <!-- Global Top Right Actions (Desktop) -->
+      <div class="hidden md:flex fixed top-3 right-4 z-50 items-center gap-1 p-1 rounded-xl backdrop-blur-md"
+           [class]="theme.isDark() ? 'bg-zinc-900/80' : 'bg-white/80 shadow-sm'">
+        <!-- Theme Toggle -->
+        <button
+          (click)="theme.toggle()"
+          class="p-2 rounded-lg transition-colors"
+          [class]="theme.isDark()
+            ? 'hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200'
+            : 'hover:bg-zinc-100 text-zinc-500 hover:text-zinc-700'"
+          title="테마 전환">
+          <i [class]="theme.isDark() ? 'pi pi-sun' : 'pi pi-moon'" class="text-sm"></i>
+        </button>
+        <!-- Settings -->
+        <button
+          class="p-2 rounded-lg transition-colors"
+          [class]="theme.isDark()
+            ? 'hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200'
+            : 'hover:bg-zinc-100 text-zinc-500 hover:text-zinc-700'"
+          title="설정">
+          <i class="pi pi-cog text-sm"></i>
+        </button>
+        <!-- User Menu -->
+        <div class="relative">
+          <button
+            (click)="toggleUserMenu()"
+            class="p-1 rounded-lg transition-colors"
+            [class]="theme.isDark() ? 'hover:bg-zinc-800' : 'hover:bg-zinc-100'"
+            title="사용자 메뉴">
+            <div class="w-7 h-7 rounded-lg bg-gradient-to-br from-cyan-500 to-cyan-600
+                        flex items-center justify-center text-white text-xs font-medium">
+              {{ userInitial() }}
+            </div>
+          </button>
+          @if (showUserMenu()) {
+            <div class="absolute right-0 top-full mt-2 w-48 rounded-xl shadow-xl overflow-hidden z-50 border"
+                 [class]="theme.isDark()
+                   ? 'bg-zinc-900 border-zinc-700'
+                   : 'bg-white border-zinc-200'">
+              <div class="px-4 py-3 border-b"
+                   [class]="theme.isDark() ? 'border-zinc-700' : 'border-zinc-100'">
+                <p class="text-sm font-medium truncate">{{ userEmail() }}</p>
+                <p class="text-xs opacity-50">Free Plan</p>
+              </div>
+              <button
+                (click)="signOut()"
+                class="w-full px-4 py-3 text-left text-sm flex items-center gap-2 transition-colors"
+                [class]="theme.isDark()
+                  ? 'hover:bg-zinc-800 text-zinc-300'
+                  : 'hover:bg-zinc-50 text-zinc-600'">
+                <i class="pi pi-sign-out"></i>
+                <span>로그아웃</span>
+              </button>
+            </div>
+          }
+        </div>
+      </div>
+      @if (showUserMenu()) {
+        <div (click)="showUserMenu.set(false)" class="fixed inset-0 z-40"></div>
+      }
+
       <!-- Mobile Header -->
-      <header class="md:hidden flex items-center justify-between px-4 py-3 border-b border-zinc-800 bg-surface shrink-0">
+      <header class="md:hidden flex items-center justify-between px-4 py-3 border-b shrink-0 backdrop-blur-md"
+              [class]="theme.isDark()
+                ? 'border-zinc-800 bg-zinc-950/90'
+                : 'border-zinc-200/70 bg-white/80 shadow-sm'">
         <div class="flex items-center gap-2">
           <button
             (click)="goBack()"
-            class="p-1.5 rounded-lg hover:bg-surface-elevated transition-colors">
-            <i class="pi pi-arrow-left text-zinc-400"></i>
+            class="p-1.5 rounded-lg transition-colors"
+            [class]="theme.isDark() ? 'hover:bg-zinc-800 text-zinc-400' : 'hover:bg-zinc-100 text-zinc-500'">
+            <i class="pi pi-arrow-left"></i>
           </button>
-          <span class="text-sm font-medium text-white truncate max-w-[200px]">{{ distillation()?.title }}</span>
+          <span class="text-sm font-medium truncate max-w-[140px]">{{ distillation()?.title }}</span>
         </div>
         <div class="flex items-center gap-1">
-          <button
-            (click)="showMobilePlayer.set(!showMobilePlayer())"
-            class="p-2 rounded-lg hover:bg-surface-elevated transition-colors"
-            [class.bg-primary]="showMobilePlayer()"
-            [class.bg-opacity-20]="showMobilePlayer()">
-            <i class="pi pi-volume-up" [class.text-primary]="showMobilePlayer()"></i>
-          </button>
+          @if (distillation()?.sourceType !== 'text') {
+            <button
+              (click)="showMobilePlayer.set(!showMobilePlayer())"
+              class="p-2 rounded-lg transition-colors"
+              [class]="showMobilePlayer()
+                ? 'bg-cyan-500/20 text-cyan-500'
+                : (theme.isDark() ? 'hover:bg-zinc-800 text-zinc-400' : 'hover:bg-zinc-100 text-zinc-500')">
+              <i class="pi pi-volume-up"></i>
+            </button>
+          } @else {
+            <button
+              (click)="showMobilePlayer.set(!showMobilePlayer())"
+              class="p-2 rounded-lg transition-colors"
+              [class]="showMobilePlayer()
+                ? 'bg-emerald-500/20 text-emerald-400'
+                : (theme.isDark() ? 'hover:bg-zinc-800 text-zinc-400' : 'hover:bg-zinc-100 text-zinc-500')">
+              <i class="pi pi-align-left"></i>
+            </button>
+          }
           <button
             (click)="toggleAgentPanel()"
-            class="p-2 rounded-lg hover:bg-surface-elevated transition-colors"
-            [class.bg-primary]="showAgentPanel()"
-            [class.bg-opacity-20]="showAgentPanel()">
-            <i class="pi pi-comments" [class.text-primary]="showAgentPanel()"></i>
+            class="p-2 rounded-lg transition-colors"
+            [class]="showAgentPanel()
+              ? 'bg-cyan-500/20 text-cyan-500'
+              : (theme.isDark() ? 'hover:bg-zinc-800 text-zinc-400' : 'hover:bg-zinc-100 text-zinc-500')">
+            <i class="pi pi-comments"></i>
           </button>
+          <!-- Theme Toggle -->
+          <button
+            (click)="theme.toggle()"
+            class="p-2 rounded-lg transition-colors"
+            [class]="theme.isDark()
+              ? 'hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200'
+              : 'hover:bg-zinc-100 text-zinc-500 hover:text-zinc-700'">
+            <i [class]="theme.isDark() ? 'pi pi-sun' : 'pi pi-moon'"></i>
+          </button>
+          <!-- Settings -->
+          <button
+            class="p-2 rounded-lg transition-colors"
+            [class]="theme.isDark()
+              ? 'hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200'
+              : 'hover:bg-zinc-100 text-zinc-500 hover:text-zinc-700'">
+            <i class="pi pi-cog"></i>
+          </button>
+          <!-- User Menu -->
+          <div class="relative">
+            <button
+              (click)="toggleUserMenu()"
+              class="p-1.5 rounded-lg transition-colors"
+              [class]="theme.isDark() ? 'hover:bg-zinc-800' : 'hover:bg-zinc-100'">
+              <div class="w-7 h-7 rounded-lg bg-gradient-to-br from-cyan-500 to-cyan-600
+                          flex items-center justify-center text-white text-xs font-medium">
+                {{ userInitial() }}
+              </div>
+            </button>
+            @if (showUserMenu()) {
+              <div class="absolute right-0 top-full mt-2 w-48 rounded-xl shadow-xl overflow-hidden z-50 border"
+                   [class]="theme.isDark()
+                     ? 'bg-zinc-900 border-zinc-700'
+                     : 'bg-white border-zinc-200'">
+                <div class="px-4 py-3 border-b"
+                     [class]="theme.isDark() ? 'border-zinc-700' : 'border-zinc-100'">
+                  <p class="text-sm font-medium truncate">{{ userEmail() }}</p>
+                  <p class="text-xs opacity-50">Free Plan</p>
+                </div>
+                <button
+                  (click)="signOut()"
+                  class="w-full px-4 py-3 text-left text-sm flex items-center gap-2 transition-colors"
+                  [class]="theme.isDark()
+                    ? 'hover:bg-zinc-800 text-zinc-300'
+                    : 'hover:bg-zinc-50 text-zinc-600'">
+                  <i class="pi pi-sign-out"></i>
+                  <span>로그아웃</span>
+                </button>
+              </div>
+            }
+          </div>
         </div>
       </header>
+      @if (showUserMenu()) {
+        <div (click)="showUserMenu.set(false)" class="fixed inset-0 z-40 md:hidden"></div>
+      }
 
       <!-- Mobile Player Panel -->
-      @if (showMobilePlayer()) {
+      @if (showMobilePlayer() && distillation()?.sourceType !== 'text') {
         <div class="md:hidden bg-surface-elevated border-b border-zinc-800 p-4 shrink-0">
           <div class="bg-surface rounded-xl border border-zinc-700 p-4">
             <div class="flex items-center gap-3 mb-3">
@@ -96,57 +231,88 @@ interface ActionItem {
           </div>
         </div>
       }
+      @if (showMobilePlayer() && distillation()?.sourceType === 'text') {
+        <div class="md:hidden bg-surface-elevated border-b border-zinc-800 p-4 shrink-0">
+          <div class="bg-surface rounded-xl border border-zinc-700 p-4">
+            <div class="flex items-center gap-3">
+              <div class="w-12 h-12 rounded-full bg-emerald-500/20 flex items-center justify-center shrink-0">
+                <i class="pi pi-align-left text-emerald-400 text-lg"></i>
+              </div>
+              <div class="flex-1 min-w-0">
+                <p class="text-sm font-medium text-white truncate">{{ distillation()?.title }}</p>
+                <p class="text-xs text-zinc-500">텍스트 입력 • {{ (distillation()?.fullTranscript?.length || 0).toLocaleString() }}자</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      }
 
       <!-- Left Panel - Source & Player (Desktop only) -->
-      <aside class="hidden md:flex w-[360px] border-r border-zinc-800 flex-col bg-surface-elevated/30 shrink-0">
+      <aside class="hidden md:flex w-[360px] border-r flex-col shrink-0 h-full"
+             [class]="theme.isDark() ? 'border-zinc-800 bg-zinc-900/50' : 'border-zinc-200 bg-white/50'">
         <!-- Header -->
-        <div class="p-4 border-b border-zinc-800">
+        <div class="p-4 border-b shrink-0" [class]="theme.isDark() ? 'border-zinc-800' : 'border-zinc-200'">
           <div class="flex items-center gap-2 mb-3">
             <button
               (click)="goBack()"
-              class="p-1.5 rounded-lg hover:bg-surface-elevated transition-colors">
-              <i class="pi pi-arrow-left text-zinc-400 text-sm"></i>
+              class="p-1.5 rounded-lg transition-colors cursor-pointer"
+              [class]="theme.isDark() ? 'hover:bg-zinc-800 text-zinc-400' : 'hover:bg-zinc-100 text-zinc-500'">
+              <i class="pi pi-arrow-left text-sm"></i>
             </button>
-            <span class="text-xs text-zinc-500">대시보드로 돌아가기</span>
+            <span class="text-xs" [class]="theme.isDark() ? 'text-zinc-500' : 'text-zinc-400'">대시보드로 돌아가기</span>
           </div>
-          <h2 class="text-sm font-medium text-zinc-400 mb-1">자료 (1)</h2>
+          <h2 class="text-sm font-medium" [class]="theme.isDark() ? 'text-zinc-500' : 'text-zinc-400'">자료 (1)</h2>
         </div>
 
-        <!-- Audio Source Card -->
-        <div class="p-4 flex-1 overflow-auto">
-          <div class="bg-surface-elevated rounded-xl border border-zinc-700 overflow-hidden">
-            <!-- Audio Visualizer Placeholder -->
-            <div class="aspect-video bg-gradient-to-br from-zinc-800 to-zinc-900 flex items-center justify-center relative">
-              <div class="absolute inset-0 flex items-center justify-center">
-                <!-- Waveform visualization -->
-                <div class="flex items-center gap-1 h-16">
-                  @for (i of waveformBars; track i) {
-                    <div
-                      class="w-1 bg-primary/60 rounded-full transition-all duration-150"
-                      [style.height.px]="isPlaying() ? (20 + Math.random() * 40) : 20">
-                    </div>
-                  }
+        <!-- Source Card - Scrollable area -->
+        <div class="p-4 flex-1 overflow-y-auto min-h-0 scrollbar-thin">
+          <div class="bg-theme-elevated rounded-xl border border-theme overflow-hidden shadow-sm">
+            @if (distillation()?.sourceType !== 'text') {
+              <!-- Audio Visualizer Placeholder -->
+              <div class="aspect-video bg-gradient-to-br from-primary/10 to-primary/5 flex items-center justify-center relative">
+                <div class="absolute inset-0 flex items-center justify-center">
+                  <!-- Waveform visualization -->
+                  <div class="flex items-center gap-1 h-16">
+                    @for (i of waveformBars; track i) {
+                      <div
+                        class="w-1 bg-primary/60 rounded-full transition-all duration-150"
+                        [style.height.px]="isPlaying() ? (20 + Math.random() * 40) : 20">
+                      </div>
+                    }
+                  </div>
+                </div>
+                <!-- Play Button Overlay -->
+                <button
+                  (click)="togglePlay()"
+                  class="absolute inset-0 flex items-center justify-center bg-black/20 hover:bg-black/30 transition-colors cursor-pointer">
+                  <div class="w-16 h-16 rounded-full bg-primary shadow-lg shadow-primary/30 flex items-center justify-center">
+                    @if (isPlaying()) {
+                      <i class="pi pi-pause text-white text-2xl"></i>
+                    } @else {
+                      <i class="pi pi-play text-white text-2xl ml-1"></i>
+                    }
+                  </div>
+                </button>
+              </div>
+            } @else {
+              <!-- Text Content Preview -->
+              <div class="aspect-video bg-gradient-to-br from-emerald-500/10 to-emerald-500/5 flex items-center justify-center p-6">
+                <div class="text-center">
+                  <div class="w-16 h-16 rounded-full bg-emerald-500/20 flex items-center justify-center mx-auto mb-3">
+                    <i class="pi pi-align-left text-emerald-500 text-2xl"></i>
+                  </div>
+                  <p class="text-sm text-theme-secondary">텍스트 입력</p>
+                  <p class="text-xs text-theme-muted mt-1">{{ (distillation()?.fullTranscript?.length || 0).toLocaleString() }}자</p>
                 </div>
               </div>
-              <!-- Play Button Overlay -->
-              <button
-                (click)="togglePlay()"
-                class="absolute inset-0 flex items-center justify-center bg-black/30 hover:bg-black/40 transition-colors">
-                <div class="w-16 h-16 rounded-full bg-primary/90 flex items-center justify-center">
-                  @if (isPlaying()) {
-                    <i class="pi pi-pause text-white text-2xl"></i>
-                  } @else {
-                    <i class="pi pi-play text-white text-2xl ml-1"></i>
-                  }
-                </div>
-              </button>
-            </div>
+            }
 
-            <!-- Audio Info -->
+            <!-- Source Info -->
             <div class="p-4">
               <div class="flex items-start gap-3 mb-3">
-                <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center shrink-0">
-                  <i class="pi pi-microphone text-white"></i>
+                <div class="w-10 h-10 rounded-lg bg-gradient-to-br flex items-center justify-center shrink-0 shadow-md"
+                     [class]="distillation()?.sourceType === 'text' ? 'from-emerald-500 to-emerald-600' : 'from-primary to-primary-dark'">
+                  <i class="pi text-white" [class]="getSourceIcon()"></i>
                 </div>
                 <div class="min-w-0 flex-1">
                   @if (isEditingTitle()) {
@@ -162,18 +328,22 @@ interface ActionItem {
                   } @else {
                     <h3
                       (click)="startEditTitle()"
-                      class="text-sm font-medium text-white truncate cursor-pointer hover:text-primary transition-colors">
+                      class="text-sm font-medium text-theme-primary truncate cursor-pointer hover:text-primary transition-colors">
                       {{ distillation()?.title }}
                     </h3>
                   }
-                  <p class="text-xs text-zinc-500 mt-0.5">
-                    {{ formatDuration(distillation()?.durationSeconds) }} • {{ formatDate(distillation()?.createdAt) }}
+                  <p class="text-xs text-theme-muted mt-0.5">
+                    @if (distillation()?.sourceType === 'text') {
+                      {{ (distillation()?.fullTranscript?.length || 0).toLocaleString() }}자 • {{ formatDate(distillation()?.createdAt) }}
+                    } @else {
+                      {{ formatDuration(distillation()?.durationSeconds) }} • {{ formatDate(distillation()?.createdAt) }}
+                    }
                   </p>
                 </div>
               </div>
 
               <!-- Mini Progress Bar -->
-              @if (distillation()?.audioUrl || distillation()?.audioPath) {
+              @if (distillation()?.sourceType !== 'text' && (distillation()?.audioUrl || distillation()?.audioPath)) {
                 <audio
                   #audioPlayer
                   [src]="distillation()?.audioUrl"
@@ -190,19 +360,19 @@ interface ActionItem {
                 <div class="space-y-2">
                   <div
                     #progressBar
-                    class="h-1.5 bg-zinc-700 rounded-full cursor-pointer overflow-hidden"
+                    class="h-1.5 bg-theme-overlay rounded-full cursor-pointer overflow-hidden"
                     (click)="seekAudio($event)">
                     <div
                       class="h-full bg-primary rounded-full transition-all"
                       [style.width.%]="progress()">
                     </div>
                   </div>
-                  <div class="flex justify-between text-xs text-zinc-500 font-mono">
+                  <div class="flex justify-between text-xs text-theme-muted font-mono">
                     <span>{{ formatTime(currentTime()) }}</span>
                     <div class="flex items-center gap-2">
                       <button
                         (click)="cycleSpeed()"
-                        class="px-1.5 py-0.5 rounded bg-surface-overlay text-zinc-400 hover:text-white transition-colors">
+                        class="px-1.5 py-0.5 rounded bg-theme-overlay text-theme-secondary hover:text-primary transition-colors cursor-pointer">
                         {{ playbackSpeed() }}x
                       </button>
                       <span>{{ formatTime(audioDuration()) }}</span>
@@ -213,19 +383,19 @@ interface ActionItem {
             </div>
 
             <!-- Bottom Buttons -->
-            <div class="flex border-t border-zinc-700">
+            <div class="flex border-t border-theme">
               <button
                 (click)="activeTab.set('transcript')"
                 class="flex-1 px-4 py-3 flex items-center justify-center gap-2
-                       text-sm text-zinc-400 hover:text-white hover:bg-surface-overlay transition-colors">
+                       text-sm text-theme-secondary hover:text-primary hover:bg-theme-overlay transition-colors cursor-pointer">
                 <i class="pi pi-file-edit"></i>
-                <span>스크립트</span>
+                <span>{{ distillation()?.sourceType === 'text' ? '원본 텍스트' : '스크립트' }}</span>
               </button>
-              @if (distillation()?.audioUrl || distillation()?.audioPath) {
+              @if (distillation()?.sourceType !== 'text' && (distillation()?.audioUrl || distillation()?.audioPath)) {
                 <button
                   (click)="downloadAudio()"
-                  class="flex-1 px-4 py-3 flex items-center justify-center gap-2 border-l border-zinc-700
-                         text-sm text-zinc-400 hover:text-white hover:bg-surface-overlay transition-colors">
+                  class="flex-1 px-4 py-3 flex items-center justify-center gap-2 border-l border-theme
+                         text-sm text-theme-secondary hover:text-primary hover:bg-theme-overlay transition-colors cursor-pointer">
                   <i class="pi pi-download"></i>
                   <span>다운로드</span>
                 </button>
@@ -234,133 +404,97 @@ interface ActionItem {
           </div>
 
           <!-- Category Selection (always visible) -->
-          <div class="mt-4 p-4 bg-surface rounded-xl border border-zinc-700">
+          <div class="mt-4 p-4 bg-theme-surface rounded-xl border border-theme">
             <div class="flex items-center justify-between mb-2">
-              <span class="text-xs font-medium text-zinc-500 uppercase tracking-wider">카테고리</span>
-              @if (isAISuggested()) {
-                <span class="text-xs text-amber-400 flex items-center gap-1">
-                  <i class="pi pi-sparkles text-xs"></i>
-                  AI 추천
-                </span>
-              } @else if (currentCategory()) {
-                <span class="text-xs text-emerald-400 flex items-center gap-1">
-                  <i class="pi pi-check-circle text-xs"></i>
-                  확인됨
-                </span>
-              }
+              <span class="text-xs font-medium text-theme-muted uppercase tracking-wider">카테고리</span>
+              <span *ngIf="isAISuggested()" class="text-xs text-amber-500 flex items-center gap-1">
+                <i class="pi pi-sparkles text-xs"></i>
+                AI 추천
+              </span>
+              <span *ngIf="!isAISuggested() && currentCategory()" class="text-xs text-emerald-500 flex items-center gap-1">
+                <i class="pi pi-check-circle text-xs"></i>
+                확인됨
+              </span>
             </div>
 
-            <div class="relative">
-              <button
-                (click)="showCategoryDropdown.set(!showCategoryDropdown())"
-                class="w-full flex items-center justify-between px-3 py-2.5 rounded-lg bg-surface-elevated
-                       border border-zinc-700 hover:border-zinc-600 transition-colors">
-                @if (currentCategory()) {
-                  <div class="flex items-center gap-2">
-                    <span
+            <!-- Category Selector Button -->
+            <button
+              #categoryButton
+              (click)="showCategoryDropdown.set(!showCategoryDropdown())"
+              class="w-full flex items-center justify-between px-3 py-2.5 rounded-lg bg-theme-elevated border border-theme hover:border-primary transition-colors cursor-pointer"
+              [ngClass]="{'border-primary': showCategoryDropdown()}">
+              <div class="flex items-center gap-2">
+                <span *ngIf="currentCategory()"
                       class="w-2.5 h-2.5 rounded-full shrink-0"
                       [style.backgroundColor]="currentCategory()!.color"></span>
-                    <span class="text-sm text-white">{{ currentCategory()!.name }}</span>
-                  </div>
-                } @else {
-                  <span class="text-sm text-zinc-500">카테고리 선택</span>
-                }
-                <i class="pi pi-chevron-down text-xs text-zinc-400"
-                   [class.rotate-180]="showCategoryDropdown()"></i>
-              </button>
+                <span *ngIf="currentCategory()" class="text-sm text-theme-primary">{{ currentCategory()!.name }}</span>
+                <span *ngIf="!currentCategory()" class="text-sm text-theme-muted">카테고리 선택</span>
+              </div>
+              <i class="pi pi-chevron-right text-xs text-theme-muted transition-transform duration-200"
+                 [ngClass]="{'rotate-180': showCategoryDropdown()}"></i>
+            </button>
 
-              @if (showCategoryDropdown()) {
-                <div class="absolute top-full left-0 right-0 mt-1 bg-surface-elevated border border-zinc-700
-                            rounded-xl shadow-xl overflow-hidden z-50 max-h-60 overflow-y-auto">
-                  @for (category of categories(); track category.id) {
-                    <button
-                      (click)="updateCategory(category.id)"
-                      [disabled]="savingCategory()"
-                      class="w-full flex items-center gap-2 px-3 py-2.5 text-left hover:bg-surface-overlay
-                             transition-colors disabled:opacity-50"
-                      [class.bg-cyan-500]="category.id === distillation()?.aiSuggestedCategoryId"
-                      [class.bg-opacity-10]="category.id === distillation()?.aiSuggestedCategoryId">
-                      <span
-                        class="w-2.5 h-2.5 rounded-full shrink-0"
-                        [style.backgroundColor]="category.color"></span>
-                      <span class="text-sm flex-1"
-                            [class.text-cyan-400]="category.id === distillation()?.aiSuggestedCategoryId"
-                            [class.text-white]="category.id !== distillation()?.aiSuggestedCategoryId">
-                        {{ category.name }}
-                      </span>
-                      @if (category.id === distillation()?.aiSuggestedCategoryId) {
-                        <i class="pi pi-check text-xs text-cyan-400"></i>
-                      }
-                    </button>
-                  }
-                </div>
-              }
-            </div>
-
-            @if (isAISuggested()) {
-              <button
-                (click)="updateCategory(currentCategory()!.id)"
-                [disabled]="savingCategory()"
-                class="w-full mt-2 px-3 py-2 rounded-lg bg-cyan-500/10 border border-cyan-500/30
-                       text-sm text-cyan-400 hover:bg-cyan-500/20 transition-colors disabled:opacity-50">
-                @if (savingCategory()) {
-                  <i class="pi pi-spin pi-spinner mr-2"></i>
-                }
-                AI 추천 확인
-              </button>
-            }
+            <button *ngIf="isAISuggested() && !showCategoryDropdown()"
+                    (click)="updateCategory(currentCategory()!.id)"
+                    [disabled]="savingCategory()"
+                    class="w-full mt-2 px-3 py-2 rounded-lg bg-violet-500/10 border border-violet-500/30 text-sm text-primary hover:bg-violet-500/20 transition-colors disabled:opacity-50 cursor-pointer">
+              <i *ngIf="savingCategory()" class="pi pi-spin pi-spinner mr-2"></i>
+              AI 추천 확인
+            </button>
           </div>
         </div>
 
         <!-- Bottom Actions -->
-        <div class="p-4 border-t border-zinc-800 space-y-2">
+        <div class="p-4 border-t border-theme space-y-2 bg-theme-surface">
           <button
             (click)="toggleAgentPanel()"
-            class="w-full btn-primary flex items-center justify-center gap-2 py-2.5">
+            class="w-full btn-primary flex items-center justify-center gap-2 py-2.5 cursor-pointer">
             <i class="pi pi-comments"></i>
             <span>Agent D와 대화하기</span>
           </button>
           <div class="relative">
             <button
               (click)="showSidebarExportMenu.set(!showSidebarExportMenu())"
-              class="w-full btn-secondary flex items-center justify-center gap-2 py-2.5">
+              class="w-full flex items-center justify-center gap-2 py-2.5 cursor-pointer
+                     bg-theme-elevated border border-theme rounded-lg
+                     text-theme-primary hover:bg-theme-overlay hover:border-primary/50 transition-colors">
               <i class="pi pi-file-export"></i>
               <span>요약 내보내기</span>
             </button>
             @if (showSidebarExportMenu()) {
-              <div class="absolute bottom-full left-0 right-0 mb-2 bg-surface-elevated border border-zinc-700
+              <div class="absolute bottom-full left-0 right-0 mb-2 bg-theme-elevated border border-theme
                           rounded-xl shadow-xl overflow-hidden z-50">
                 <div class="py-2">
                   <!-- PDF -->
                   <button
                     (click)="exportAs('pdf'); showSidebarExportMenu.set(false)"
-                    class="w-full px-4 py-3 text-left hover:bg-surface-overlay flex items-center justify-between">
+                    class="w-full px-4 py-3 text-left hover:bg-theme-overlay flex items-center justify-between cursor-pointer">
                     <div>
-                      <div class="text-sm font-medium text-white">PDF</div>
-                      <div class="text-xs text-zinc-500">문서 전송에 가장 적합</div>
+                      <div class="text-sm font-medium text-theme-primary">PDF</div>
+                      <div class="text-xs text-theme-muted">문서 전송에 가장 적합</div>
                     </div>
                     <i class="pi pi-check text-primary text-sm"></i>
                   </button>
                   <!-- DOCX -->
                   <button
                     (click)="exportAs('docx'); showSidebarExportMenu.set(false)"
-                    class="w-full px-4 py-3 text-left hover:bg-surface-overlay">
-                    <div class="text-sm font-medium text-white">DOCX</div>
-                    <div class="text-xs text-zinc-500">마이크로소프트 워드 문서 형식</div>
+                    class="w-full px-4 py-3 text-left hover:bg-theme-overlay cursor-pointer">
+                    <div class="text-sm font-medium text-theme-primary">DOCX</div>
+                    <div class="text-xs text-theme-muted">마이크로소프트 워드 문서 형식</div>
                   </button>
                   <!-- JSON -->
                   <button
                     (click)="exportAs('json'); showSidebarExportMenu.set(false)"
-                    class="w-full px-4 py-3 text-left hover:bg-surface-overlay">
-                    <div class="text-sm font-medium text-white">JSON</div>
-                    <div class="text-xs text-zinc-500">프로그래밍 데이터로 적합</div>
+                    class="w-full px-4 py-3 text-left hover:bg-theme-overlay cursor-pointer">
+                    <div class="text-sm font-medium text-theme-primary">JSON</div>
+                    <div class="text-xs text-theme-muted">프로그래밍 데이터로 적합</div>
                   </button>
                   <!-- MARKDOWN -->
                   <button
                     (click)="exportAs('md'); showSidebarExportMenu.set(false)"
-                    class="w-full px-4 py-3 text-left hover:bg-surface-overlay">
-                    <div class="text-sm font-medium text-white">MARKDOWN</div>
-                    <div class="text-xs text-zinc-500">리포트로 내보내기 적합</div>
+                    class="w-full px-4 py-3 text-left hover:bg-theme-overlay cursor-pointer">
+                    <div class="text-sm font-medium text-theme-primary">MARKDOWN</div>
+                    <div class="text-xs text-theme-muted">리포트로 내보내기 적합</div>
                   </button>
                 </div>
               </div>
@@ -370,16 +504,16 @@ interface ActionItem {
       </aside>
 
       <!-- Right Panel - Report Content -->
-      <main class="flex-1 flex flex-col overflow-hidden">
+      <main class="flex-1 flex flex-col overflow-hidden bg-theme-surface">
         <!-- Tab Navigation -->
-        <div class="border-b border-zinc-800 bg-surface/95 backdrop-blur-sm">
+        <div class="border-b border-theme bg-theme-surface/95 backdrop-blur-sm">
           <div class="px-6 py-3 flex items-center gap-1">
             @for (tab of tabs; track tab.id) {
               <button
                 (click)="activeTab.set(tab.id)"
                 [class]="activeTab() === tab.id
-                  ? 'px-4 py-2 rounded-lg bg-primary/10 text-primary border border-primary/30 text-sm font-medium'
-                  : 'px-4 py-2 rounded-lg text-zinc-400 hover:bg-surface-elevated text-sm font-medium transition-colors'">
+                  ? 'px-4 py-2 rounded-lg bg-primary/10 text-primary border border-primary/30 text-sm font-medium cursor-pointer'
+                  : 'px-4 py-2 rounded-lg text-theme-secondary hover:bg-theme-elevated text-sm font-medium transition-colors cursor-pointer'">
                 {{ tab.label }}
                 @if (tab.id === activeTab()) {
                   <i class="pi pi-star-fill text-xs ml-1 text-primary"></i>
@@ -390,41 +524,41 @@ interface ActionItem {
             <div class="relative">
               <button
                 (click)="toggleSettingsMenu()"
-                class="p-2 rounded-lg hover:bg-surface-elevated transition-colors">
-                <i class="pi pi-cog text-zinc-400"></i>
+                class="p-2 rounded-lg hover:bg-theme-elevated transition-colors cursor-pointer">
+                <i class="pi pi-cog text-theme-muted"></i>
               </button>
               @if (showSettingsMenu()) {
-                <div class="absolute right-0 top-full mt-1 w-56 bg-surface-elevated border border-zinc-700
+                <div class="absolute right-0 top-full mt-1 w-56 bg-theme-elevated border border-theme
                             rounded-xl shadow-xl overflow-hidden z-50">
                   <div class="p-2">
-                    <div class="px-3 py-2 text-xs text-zinc-500 uppercase tracking-wider">설정</div>
+                    <div class="px-3 py-2 text-xs text-theme-muted uppercase tracking-wider">설정</div>
                     <button
                       (click)="toggleAutoPlay(); showSettingsMenu.set(false)"
-                      class="w-full px-3 py-2 text-left text-sm text-zinc-300 hover:bg-surface-overlay
-                             rounded-lg flex items-center justify-between">
+                      class="w-full px-3 py-2 text-left text-sm text-theme-secondary hover:bg-theme-overlay
+                             rounded-lg flex items-center justify-between cursor-pointer">
                       <span>타임스탬프 자동 재생</span>
-                      <i [class]="autoPlayTimestamp() ? 'pi pi-check text-primary' : 'pi pi-times text-zinc-500'"></i>
+                      <i [class]="autoPlayTimestamp() ? 'pi pi-check text-primary' : 'pi pi-times text-theme-muted'"></i>
                     </button>
                     <button
                       (click)="toggleShowTimestamps(); showSettingsMenu.set(false)"
-                      class="w-full px-3 py-2 text-left text-sm text-zinc-300 hover:bg-surface-overlay
-                             rounded-lg flex items-center justify-between">
+                      class="w-full px-3 py-2 text-left text-sm text-theme-secondary hover:bg-theme-overlay
+                             rounded-lg flex items-center justify-between cursor-pointer">
                       <span>타임스탬프 표시</span>
-                      <i [class]="showTimestamps() ? 'pi pi-check text-primary' : 'pi pi-times text-zinc-500'"></i>
+                      <i [class]="showTimestamps() ? 'pi pi-check text-primary' : 'pi pi-times text-theme-muted'"></i>
                     </button>
-                    <div class="border-t border-zinc-700 my-2"></div>
+                    <div class="border-t border-theme my-2"></div>
                     <button
                       (click)="regenerateSummary(); showSettingsMenu.set(false)"
                       [disabled]="summarizing()"
-                      class="w-full px-3 py-2 text-left text-sm text-zinc-300 hover:bg-surface-overlay
-                             rounded-lg flex items-center gap-2 disabled:opacity-50">
+                      class="w-full px-3 py-2 text-left text-sm text-theme-secondary hover:bg-theme-overlay
+                             rounded-lg flex items-center gap-2 disabled:opacity-50 cursor-pointer">
                       <i class="pi pi-refresh text-sm"></i>
                       <span>리포트 재생성</span>
                     </button>
                     <button
                       (click)="deleteLecture(); showSettingsMenu.set(false)"
-                      class="w-full px-3 py-2 text-left text-sm text-red-400 hover:bg-red-500/10
-                             rounded-lg flex items-center gap-2">
+                      class="w-full px-3 py-2 text-left text-sm text-red-500 hover:bg-red-500/10
+                             rounded-lg flex items-center gap-2 cursor-pointer">
                       <i class="pi pi-trash text-sm"></i>
                       <span>삭제</span>
                     </button>
@@ -437,14 +571,14 @@ interface ActionItem {
           <!-- Sub tabs for detailed report -->
           @if (activeTab() === 'detailed') {
             <div class="px-6 pb-3 flex items-center gap-2">
-              <span class="text-xs text-zinc-500 mr-2">추천</span>
+              <span class="text-xs text-theme-muted mr-2">추천</span>
               @for (subtab of subTabs; track subtab) {
                 <button
                   (click)="activeSubTab.set(subtab)"
-                  class="px-3 py-1 rounded-full text-xs border transition-colors"
+                  class="px-3 py-1 rounded-full text-xs border transition-colors cursor-pointer"
                   [class]="activeSubTab() === subtab
                     ? 'border-primary/50 bg-primary/10 text-primary'
-                    : 'border-zinc-700 text-zinc-400 hover:border-zinc-600'">
+                    : 'border-theme text-theme-secondary hover:border-primary/30'">
                   {{ subtab }}
                 </button>
               }
@@ -502,83 +636,172 @@ interface ActionItem {
                 @case ('detailed') {
                   @switch (activeSubTab()) {
                     @case ('인포그래픽') {
+                      <!-- Title Section (Lilys Style) -->
+                      <div class="mb-8">
+                        <h1 class="text-2xl md:text-3xl font-display font-bold text-theme-primary mb-4 leading-tight">
+                          {{ distillation()?.title || 'Untitled' }}
+                        </h1>
+                        @if (extractedIntro()) {
+                          <div class="intro-box p-5 rounded-xl">
+                            <p class="text-theme-secondary leading-relaxed text-base">
+                              {{ extractedIntro() }}
+                            </p>
+                          </div>
+                        }
+                      </div>
+
+                      <!-- Table of Contents (Lilys style) -->
+                      @if (tableOfContents().length > 0) {
+                        <nav class="toc-container mb-8 p-5 rounded-xl border backdrop-blur-sm">
+                          <h3 class="text-sm font-semibold text-theme-muted mb-4 flex items-center gap-2">
+                            <i class="pi pi-list text-xs"></i>
+                            목차
+                            <span class="text-xs text-theme-muted font-normal ml-auto">{{ tableOfContents().length }}개 섹션</span>
+                          </h3>
+                          <div class="border-l-2 border-theme ml-2 space-y-0.5">
+                            @for (item of tableOfContents(); track item.id) {
+                              <a
+                                (click)="scrollToSection(item.id)"
+                                class="toc-item relative flex items-center text-sm cursor-pointer py-2 group"
+                                [class.pl-4]="item.level === 1"
+                                [class.pl-8]="item.level === 2"
+                                [class.text-theme-primary]="item.level === 1"
+                                [class.font-medium]="item.level === 1"
+                                [class.text-theme-secondary]="item.level === 2">
+                                <!-- Connecting dot with pulse effect on hover -->
+                                <span class="absolute left-0 w-2 h-2 -translate-x-[5px] rounded-full transition-all duration-200 group-hover:scale-125"
+                                      [class.bg-primary]="item.level === 1"
+                                      [class.bg-theme-muted]="item.level === 2"
+                                      [class.group-hover:bg-primary]="true"></span>
+                                <span class="truncate">{{ item.number }}. {{ item.title }}</span>
+                              </a>
+                            }
+                          </div>
+                        </nav>
+                      }
+
                       @if (parsedSections().length > 0) {
-                        @for (section of parsedSections(); track section.title; let i = $index) {
-                          <section class="mb-10">
-                            <div class="flex items-start gap-4 mb-4">
-                              <h2 class="text-lg font-display font-semibold text-white flex-1">
-                                {{ i + 1 }}. {{ section.title }}
-                              </h2>
-                              @if (section.timestamp) {
-                                <button
-                                  (click)="seekToTimestamp(section.timestamp)"
-                                  class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg
-                                         bg-surface-elevated border border-zinc-700
-                                         text-xs text-zinc-400 hover:text-primary hover:border-primary/50 transition-colors">
-                                  <i class="pi pi-play text-xs"></i>
-                                  <span class="font-mono">{{ section.timestamp }}</span>
-                                </button>
-                              }
+                        @for (section of parsedSections(); track section.number; let i = $index) {
+                          <!-- Section Card (Lilys Style) -->
+                          <section class="summary-section-card mb-8 p-6 rounded-xl border transition-all"
+                                   [id]="'section-' + section.number">
+                            <!-- Section Header -->
+                            <div class="flex items-start gap-4 mb-5">
+                              <div class="flex items-center gap-3 flex-1">
+                                <span class="section-number-badge flex items-center justify-center w-10 h-10 rounded-xl font-bold text-base shrink-0 shadow-lg shadow-primary/20">
+                                  {{ section.number }}
+                                </span>
+                                <h2 class="text-xl font-display font-bold text-theme-primary leading-tight">
+                                  {{ section.title }}
+                                </h2>
+                              </div>
+                              <button
+                                (click)="showOriginalText(i)"
+                                class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg
+                                       bg-theme-elevated border border-theme
+                                       text-xs text-theme-muted hover:text-primary hover:border-primary/50 transition-colors shrink-0">
+                                <i class="pi pi-file-edit text-xs"></i>
+                                원문 보기
+                              </button>
                             </div>
-                            <div class="pl-4 border-l-2 border-zinc-700 space-y-3">
+
+                            <!-- Section Description (Lilys style) -->
+                            @if (section.description) {
+                              <p class="section-description text-theme-muted leading-relaxed mb-5 text-base italic border-l-2 pl-4">
+                                {{ section.description }}
+                              </p>
+                            }
+
+                            <!-- Section Content -->
+                            <div class="space-y-4">
                               @for (item of section.items; track $index) {
-                                <div class="text-zinc-300 leading-relaxed">
-                                  @if (item.type === 'heading') {
-                                    <h3 class="text-base font-semibold text-white mt-4 mb-2">{{ item.content }}</h3>
-                                  } @else if (item.type === 'bullet') {
-                                    <div class="flex gap-2">
-                                      <span class="text-primary mt-1">•</span>
-                                      <span [innerHTML]="highlightKeywords(item.content)"></span>
+                                <!-- Subsection (1.1, 1.2, etc.) -->
+                                @if (item.type === 'subsection') {
+                                  <div class="mt-8 mb-4 pt-4 border-t border-theme">
+                                    <div class="flex items-center gap-3">
+                                      <span class="subsection-marker flex items-center justify-center px-3 py-1.5 rounded-lg font-mono text-sm font-bold border">
+                                        {{ item.marker }}
+                                      </span>
+                                      <h3 class="text-lg font-semibold text-theme-primary">{{ item.content }}</h3>
                                     </div>
-                                  } @else if (item.type === 'quote') {
-                                    <blockquote class="pl-4 border-l-2 border-primary/50 italic text-zinc-400 my-3">"{{ item.content }}"</blockquote>
-                                  } @else if (item.type === 'timestamp-item' && item.timestamp) {
-                                    <div class="flex gap-3 items-start">
-                                      <button (click)="seekToTimestamp(item.timestamp!)"
-                                        class="shrink-0 px-2 py-1 rounded bg-surface-elevated border border-zinc-700
-                                               text-xs font-mono text-zinc-400 hover:text-primary hover:border-primary/50 transition-colors">
-                                        {{ item.timestamp }}
-                                      </button>
-                                      <span [innerHTML]="highlightKeywords(item.content)"></span>
-                                    </div>
-                                  } @else {
-                                    <p [innerHTML]="highlightKeywords(item.content)"></p>
-                                  }
-                                </div>
+                                  </div>
+                                } @else if (item.type === 'heading') {
+                                  <div class="flex items-center gap-2 mt-5 mb-3">
+                                    @if (item.marker) {
+                                      <span class="flex items-center justify-center px-2 py-0.5 rounded bg-theme-overlay text-theme-secondary font-mono text-xs">
+                                        {{ item.marker }}
+                                      </span>
+                                    }
+                                    <h3 class="text-base font-semibold text-theme-primary">{{ item.content }}</h3>
+                                  </div>
+                                } @else if (item.type === 'bullet') {
+                                  <div class="flex gap-3 py-2 pl-1 border-l-2 border-transparent hover:border-primary/30 transition-colors">
+                                    <span class="text-primary mt-1 text-base shrink-0">•</span>
+                                    <div class="text-theme-secondary leading-relaxed text-[15px]" [innerHTML]="highlightKeywords(item.content)"></div>
+                                  </div>
+                                } @else if (item.type === 'alpha-list') {
+                                  <div class="flex gap-3 pl-6 py-1">
+                                    <span class="text-primary font-mono text-sm shrink-0 w-6 mt-0.5">{{ item.marker }}</span>
+                                    <p class="text-theme-secondary leading-relaxed" [innerHTML]="highlightKeywords(item.content)"></p>
+                                  </div>
+                                } @else if (item.type === 'roman-list') {
+                                  <div class="flex gap-3 pl-10 py-1">
+                                    <span class="text-theme-muted font-mono text-sm shrink-0 w-8 mt-0.5">{{ item.marker }}</span>
+                                    <p class="text-theme-secondary leading-relaxed" [innerHTML]="highlightKeywords(item.content)"></p>
+                                  </div>
+                                } @else if (item.type === 'highlight-box') {
+                                  <div class="highlight-box flex items-start gap-3 my-4 p-4 rounded-lg">
+                                    <span class="text-amber-500 text-lg shrink-0">💡</span>
+                                    <p class="text-theme-primary leading-relaxed" [innerHTML]="highlightKeywords(item.content)"></p>
+                                  </div>
+                                } @else if (item.type === 'quote') {
+                                  <blockquote class="pl-4 border-l-3 border-primary/50 italic text-theme-muted my-4 py-2">"{{ item.content }}"</blockquote>
+                                } @else if (item.type === 'timestamp-item' && item.timestamp) {
+                                  <div class="flex gap-3 items-start py-1">
+                                    <button (click)="seekToTimestamp(item.timestamp!)"
+                                      class="shrink-0 px-2.5 py-1 rounded-lg bg-theme-elevated border border-theme
+                                             text-xs font-mono text-theme-muted hover:text-primary hover:border-primary/50 transition-colors">
+                                      {{ item.timestamp }}
+                                    </button>
+                                    <p class="text-theme-secondary leading-relaxed" [innerHTML]="highlightKeywords(item.content)"></p>
+                                  </div>
+                                } @else if (item.type === 'text') {
+                                  <p class="text-theme-secondary leading-relaxed pl-2" [innerHTML]="highlightKeywords(item.content)"></p>
+                                }
                               }
                             </div>
                           </section>
                         }
                       } @else {
-                        <article class="prose prose-invert prose-zinc max-w-none
-                                      prose-headings:font-display prose-headings:font-semibold
+                        <article class="prose prose-light dark:prose-invert max-w-none
+                                      prose-headings:font-display prose-headings:font-semibold prose-headings:text-theme-primary
                                       prose-h1:text-2xl prose-h2:text-xl prose-h3:text-lg
-                                      prose-p:text-zinc-300 prose-p:leading-relaxed
+                                      prose-p:text-theme-secondary prose-p:leading-relaxed
                                       prose-strong:text-primary prose-strong:font-semibold
                                       prose-a:text-primary prose-a:no-underline hover:prose-a:underline
-                                      prose-li:text-zinc-300 prose-li:marker:text-primary">
+                                      prose-li:text-theme-secondary prose-li:marker:text-primary">
                           <div [innerHTML]="renderedSummary()"></div>
                         </article>
                       }
                     }
                     @case ('인용리포트') {
                       <div class="space-y-4">
-                        <div class="bg-surface-elevated rounded-xl border border-zinc-700 p-6">
-                          <h2 class="font-display text-lg font-semibold text-white mb-6 flex items-center gap-2">
+                        <div class="bg-theme-elevated rounded-xl border border-theme p-6">
+                          <h2 class="font-display text-lg font-semibold text-theme-primary mb-6 flex items-center gap-2">
                             <i class="pi pi-comment text-primary"></i>
                             주요 인용문
                           </h2>
                           @if (extractedQuotes().length > 0) {
                             <div class="space-y-4">
                               @for (quote of extractedQuotes(); track $index) {
-                                <div class="relative pl-6 py-3 border-l-4 border-primary/40 bg-surface-overlay/30 rounded-r-lg">
+                                <div class="relative pl-6 py-3 border-l-4 border-primary/40 bg-theme-overlay rounded-r-lg">
                                   <i class="pi pi-quote-left absolute left-2 top-3 text-primary/40 text-xs"></i>
-                                  <p class="text-zinc-200 italic leading-relaxed">{{ quote.content }}</p>
+                                  <p class="text-theme-primary italic leading-relaxed">{{ quote.content }}</p>
                                   @if (quote.timestamp) {
                                     <button (click)="seekToTimestamp(quote.timestamp)"
                                       class="mt-2 inline-flex items-center gap-1.5 px-2 py-1 rounded
-                                             bg-surface-elevated border border-zinc-700
-                                             text-xs text-zinc-400 hover:text-primary hover:border-primary/50 transition-colors">
+                                             bg-theme-elevated border border-theme
+                                             text-xs text-theme-muted hover:text-primary hover:border-primary/50 transition-colors">
                                       <i class="pi pi-play text-xs"></i>
                                       <span class="font-mono">{{ quote.timestamp }}</span>
                                     </button>
@@ -587,34 +810,34 @@ interface ActionItem {
                               }
                             </div>
                           } @else {
-                            <p class="text-zinc-500 text-center py-8">인용문이 없습니다</p>
+                            <p class="text-theme-muted text-center py-8">인용문이 없습니다</p>
                           }
                         </div>
                       </div>
                     }
                     @case ('액션아이템') {
                       <div class="space-y-4">
-                        <div class="bg-surface-elevated rounded-xl border border-zinc-700 p-6">
-                          <h2 class="font-display text-lg font-semibold text-white mb-6 flex items-center gap-2">
+                        <div class="bg-theme-elevated rounded-xl border border-theme p-6">
+                          <h2 class="font-display text-lg font-semibold text-theme-primary mb-6 flex items-center gap-2">
                             <i class="pi pi-check-square text-primary"></i>
                             액션 아이템
                           </h2>
                           @if (extractedActions().length > 0) {
                             <div class="space-y-3">
                               @for (action of extractedActions(); track $index) {
-                                <div class="flex items-start gap-3 p-3 rounded-lg bg-surface-overlay/30 border border-zinc-700/50">
+                                <div class="flex items-start gap-3 p-3 rounded-lg bg-theme-overlay border border-theme">
                                   <div [class]="'w-5 h-5 rounded-full flex items-center justify-center shrink-0 ' +
-                                    (action.priority === 'high' ? 'bg-red-500/20 text-red-400' :
-                                     action.priority === 'medium' ? 'bg-yellow-500/20 text-yellow-400' :
-                                     'bg-green-500/20 text-green-400')">
+                                    (action.priority === 'high' ? 'bg-red-500/20 text-red-500' :
+                                     action.priority === 'medium' ? 'bg-yellow-500/20 text-yellow-600' :
+                                     'bg-green-500/20 text-green-600')">
                                     <i class="pi pi-check text-xs"></i>
                                   </div>
                                   <div class="flex-1">
-                                    <p class="text-zinc-200">{{ action.content }}</p>
+                                    <p class="text-theme-primary">{{ action.content }}</p>
                                     <span [class]="'text-xs mt-1 inline-block px-2 py-0.5 rounded ' +
-                                      (action.priority === 'high' ? 'bg-red-500/10 text-red-400' :
-                                       action.priority === 'medium' ? 'bg-yellow-500/10 text-yellow-400' :
-                                       'bg-green-500/10 text-green-400')">
+                                      (action.priority === 'high' ? 'bg-red-500/10 text-red-500' :
+                                       action.priority === 'medium' ? 'bg-yellow-500/10 text-yellow-600' :
+                                       'bg-green-500/10 text-green-600')">
                                       {{ action.priority === 'high' ? '높음' : action.priority === 'medium' ? '중간' : '낮음' }}
                                     </span>
                                   </div>
@@ -622,43 +845,43 @@ interface ActionItem {
                               }
                             </div>
                           } @else {
-                            <p class="text-zinc-500 text-center py-8">액션 아이템이 없습니다</p>
+                            <p class="text-theme-muted text-center py-8">액션 아이템이 없습니다</p>
                           }
                         </div>
                       </div>
                     }
                     @case ('배경지식') {
                       <div class="space-y-4">
-                        <div class="bg-surface-elevated rounded-xl border border-zinc-700 p-6">
-                          <h2 class="font-display text-lg font-semibold text-white mb-6 flex items-center gap-2">
+                        <div class="bg-theme-elevated rounded-xl border border-theme p-6">
+                          <h2 class="font-display text-lg font-semibold text-theme-primary mb-6 flex items-center gap-2">
                             <i class="pi pi-book text-primary"></i>
                             배경 지식
                           </h2>
                           @if (backgroundKnowledge().length > 0) {
                             <div class="space-y-4">
                               @for (item of backgroundKnowledge(); track $index) {
-                                <div class="p-4 rounded-lg bg-surface-overlay/30 border border-zinc-700/50">
-                                  <h3 class="font-semibold text-white mb-2 flex items-center gap-2">
+                                <div class="p-4 rounded-lg bg-theme-overlay border border-theme">
+                                  <h3 class="font-semibold text-theme-primary mb-2 flex items-center gap-2">
                                     <i class="pi pi-lightbulb text-primary text-sm"></i>
                                     {{ item.term }}
                                   </h3>
-                                  <p class="text-zinc-300 text-sm leading-relaxed">{{ item.explanation }}</p>
+                                  <p class="text-theme-secondary text-sm leading-relaxed">{{ item.explanation }}</p>
                                 </div>
                               }
                             </div>
                           } @else {
-                            <p class="text-zinc-500 text-center py-8">배경 지식이 없습니다</p>
+                            <p class="text-theme-muted text-center py-8">배경 지식이 없습니다</p>
                           }
                         </div>
                         @if (learningKeywords().length > 0) {
-                          <div class="bg-surface-elevated rounded-xl border border-zinc-700 p-6">
-                            <h2 class="font-display text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                          <div class="bg-theme-elevated rounded-xl border border-theme p-6">
+                            <h2 class="font-display text-lg font-semibold text-theme-primary mb-4 flex items-center gap-2">
                               <i class="pi pi-search text-primary"></i>
                               추가 학습 키워드
                             </h2>
                             <div class="flex flex-wrap gap-2">
                               @for (keyword of learningKeywords(); track keyword) {
-                                <span class="px-3 py-1.5 rounded-full bg-zinc-700/50 text-zinc-300 text-sm
+                                <span class="px-3 py-1.5 rounded-full bg-theme-overlay text-theme-secondary text-sm
                                              hover:bg-primary/20 hover:text-primary cursor-pointer transition-colors">
                                   {{ keyword }}
                                 </span>
@@ -673,8 +896,8 @@ interface ActionItem {
                 @case ('summary') {
                   <!-- Key Points Summary -->
                   <div class="space-y-6">
-                    <div class="bg-surface-elevated rounded-xl border border-zinc-700 p-6">
-                      <h2 class="font-display text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                    <div class="bg-theme-elevated rounded-xl border border-theme p-6">
+                      <h2 class="font-display text-lg font-semibold text-theme-primary mb-4 flex items-center gap-2">
                         <i class="pi pi-star text-primary"></i>
                         핵심 포인트
                       </h2>
@@ -685,7 +908,7 @@ interface ActionItem {
                                         flex items-center justify-center shrink-0 font-medium">
                               {{ i + 1 }}
                             </span>
-                            <p class="text-zinc-300 leading-relaxed">{{ point }}</p>
+                            <p class="text-theme-secondary leading-relaxed">{{ point }}</p>
                           </div>
                         }
                       </div>
@@ -693,8 +916,8 @@ interface ActionItem {
 
                     <!-- Keywords -->
                     @if (distillation()?.tags && distillation()!.tags.length > 0) {
-                      <div class="bg-surface-elevated rounded-xl border border-zinc-700 p-6">
-                        <h2 class="font-display text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                      <div class="bg-theme-elevated rounded-xl border border-theme p-6">
+                        <h2 class="font-display text-lg font-semibold text-theme-primary mb-4 flex items-center gap-2">
                           <i class="pi pi-tag text-primary"></i>
                           핵심 키워드
                         </h2>
@@ -713,21 +936,21 @@ interface ActionItem {
                   <!-- Full Transcript -->
                   <div class="space-y-4">
                     @if (distillation()?.fullTranscript) {
-                      <div class="bg-surface-elevated rounded-xl border border-zinc-700 p-6">
-                        <h2 class="font-display text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                      <div class="bg-theme-elevated rounded-xl border border-theme p-6">
+                        <h2 class="font-display text-lg font-semibold text-theme-primary mb-4 flex items-center gap-2">
                           <i class="pi pi-file-edit text-primary"></i>
                           전체 스크립트
                         </h2>
-                        <div class="text-zinc-300 leading-relaxed whitespace-pre-wrap font-mono text-sm">
+                        <div class="text-theme-secondary leading-relaxed whitespace-pre-wrap font-mono text-sm">
                           {{ distillation()?.fullTranscript }}
                         </div>
                       </div>
                     } @else {
                       <div class="text-center py-16">
-                        <div class="w-16 h-16 rounded-full bg-surface-elevated flex items-center justify-center mx-auto mb-4">
-                          <i class="pi pi-file-edit text-2xl text-zinc-500"></i>
+                        <div class="w-16 h-16 rounded-full bg-theme-elevated flex items-center justify-center mx-auto mb-4">
+                          <i class="pi pi-file-edit text-2xl text-theme-muted"></i>
                         </div>
-                        <p class="text-zinc-400">스크립트가 없습니다</p>
+                        <p class="text-theme-muted">스크립트가 없습니다</p>
                       </div>
                     }
                   </div>
@@ -950,6 +1173,91 @@ interface ActionItem {
       @if (showCategoryDropdown()) {
         <div (click)="showCategoryDropdown.set(false)" class="fixed inset-0 z-40"></div>
       }
+
+      <!-- Original Text Modal -->
+      @if (showOriginalModal()) {
+        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+             (click)="closeOriginalModal()">
+          <div class="bg-surface-elevated border border-zinc-700 rounded-xl shadow-2xl max-w-3xl w-full mx-4 max-h-[80vh] overflow-hidden"
+               (click)="$event.stopPropagation()">
+            <!-- Modal Header -->
+            <div class="flex items-center justify-between p-4 border-b border-zinc-700">
+              <div class="flex items-center gap-3">
+                <div class="w-8 h-8 rounded-lg bg-cyan-500/20 flex items-center justify-center">
+                  <i class="pi pi-file-edit text-cyan-400"></i>
+                </div>
+                <div>
+                  <h3 class="font-semibold text-white">원문 보기</h3>
+                  @if (originalModalSectionIndex() !== null && parsedSections()[originalModalSectionIndex()!]) {
+                    <p class="text-xs text-zinc-400">{{ originalModalSectionIndex()! + 1 }}. {{ parsedSections()[originalModalSectionIndex()!].title }}</p>
+                  }
+                </div>
+              </div>
+              <button (click)="closeOriginalModal()"
+                      class="p-2 rounded-lg hover:bg-zinc-700 text-zinc-400 hover:text-white transition-colors">
+                <i class="pi pi-times"></i>
+              </button>
+            </div>
+            <!-- Modal Content -->
+            <div class="p-5 overflow-y-auto max-h-[60vh]">
+              @if (distillation()?.fullTranscript) {
+                <div class="prose prose-invert prose-sm max-w-none">
+                  <p class="text-zinc-300 leading-relaxed whitespace-pre-wrap font-mono text-sm">{{ distillation()?.fullTranscript }}</p>
+                </div>
+              } @else {
+                <div class="text-center py-8 text-zinc-500">
+                  <i class="pi pi-info-circle text-2xl mb-2"></i>
+                  <p>전사본이 없습니다.</p>
+                </div>
+              }
+            </div>
+          </div>
+        </div>
+      }
+
+      <!-- Fixed Category Selection Panel (overlays everything) -->
+      <div *ngIf="showCategoryDropdown()"
+           class="fixed inset-0 z-[200]"
+           (click)="showCategoryDropdown.set(false)">
+        <!-- Panel positioned at sidebar right edge -->
+        <div class="absolute top-1/3 left-72 w-64 bg-theme-elevated border border-theme rounded-xl shadow-2xl overflow-hidden"
+             (click)="$event.stopPropagation()">
+          <!-- Header -->
+          <div class="flex items-center justify-between px-4 py-3 border-b border-theme bg-theme-surface">
+            <span class="text-sm font-semibold text-theme-primary">카테고리 선택</span>
+            <button (click)="showCategoryDropdown.set(false)"
+                    class="p-1.5 rounded-lg hover:bg-theme-overlay text-theme-muted hover:text-theme-primary transition-colors cursor-pointer">
+              <i class="pi pi-times text-sm"></i>
+            </button>
+          </div>
+          <!-- Category List -->
+          <div class="max-h-80 overflow-y-auto overscroll-contain">
+            <button *ngFor="let category of categories()"
+                    (click)="updateCategory(category.id)"
+                    [disabled]="savingCategory()"
+                    class="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-theme-overlay transition-colors disabled:opacity-50 cursor-pointer border-b border-theme/30 last:border-b-0"
+                    [ngClass]="{'bg-violet-500/10': category.id === distillation()?.aiSuggestedCategoryId}">
+              <span class="w-3 h-3 rounded-full shrink-0"
+                    [style.backgroundColor]="category.color"></span>
+              <span class="text-sm flex-1"
+                    [ngClass]="{
+                      'text-primary font-medium': category.id === distillation()?.aiSuggestedCategoryId,
+                      'text-theme-primary': category.id !== distillation()?.aiSuggestedCategoryId
+                    }">
+                {{ category.name }}
+              </span>
+              <span *ngIf="category.id === distillation()?.aiSuggestedCategoryId"
+                    class="text-xs text-amber-500 flex items-center gap-1 shrink-0">
+                <i class="pi pi-sparkles text-xs"></i>
+                AI 추천
+              </span>
+              <i *ngIf="category.id === currentCategory()?.id"
+                 class="pi pi-check text-primary text-sm shrink-0"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+
     </div>
   `,
   styles: [`
@@ -1093,6 +1401,8 @@ export class LectureDetailComponent implements OnInit, OnDestroy {
   private router = inject(Router);
   private api = inject(ApiService);
   private sanitizer = inject(DomSanitizer);
+  private supabase = inject(SupabaseService);
+  theme = inject(ThemeService);
 
   @ViewChild('audioPlayer') audioPlayerRef!: ElementRef<HTMLAudioElement>;
   @ViewChild('progressBar') progressBarRef!: ElementRef<HTMLDivElement>;
@@ -1135,6 +1445,9 @@ export class LectureDetailComponent implements OnInit, OnDestroy {
   // Agent panel state
   showAgentPanel = signal(false);
   chatInput = signal('');
+
+  // User menu state
+  showUserMenu = signal(false);
   chatMessages = signal<ChatMessage[]>([]);
   chatLoading = signal(false);
 
@@ -1159,6 +1472,10 @@ export class LectureDetailComponent implements OnInit, OnDestroy {
   categories = signal<CategoryWithCount[]>([]);
   showCategoryDropdown = signal(false);
   savingCategory = signal(false);
+
+  // Original text modal state
+  showOriginalModal = signal(false);
+  originalModalSectionIndex = signal<number | null>(null);
 
   ngOnInit() {
     const id = this.route.snapshot.paramMap.get('id');
@@ -1219,11 +1536,20 @@ export class LectureDetailComponent implements OnInit, OnDestroy {
           id: response.data.id,
           audioPath: response.data.audioPath,
           audioUrl: response.data.audioUrl,
+          status: response.data.status,
+          hasSummary: !!response.data.summaryMd,
         });
         this.distillation.set(response.data);
         this.loading.set(false);
         if (this.showAgentPanel()) {
           this.loadChatHistory(id);
+        }
+
+        // Auto-start summarization if no summary exists and not already processing
+        const d = response.data;
+        if (!d.summaryMd && d.status !== 'processing' && d.status !== 'failed') {
+          console.log('🤖 Auto-starting AI report generation...');
+          this.startSummarize();
         }
       },
       error: (error) => {
@@ -1244,36 +1570,85 @@ export class LectureDetailComponent implements OnInit, OnDestroy {
     });
   }
 
-  // Parse markdown into structured sections
+  // Parse markdown into structured sections (Lilys style: 1., 1.1, 2., etc.)
   parsedSections = computed(() => {
     const md = this.distillation()?.summaryMd || '';
     if (!md) return [];
 
     const sections: Array<{
+      number: string;
       title: string;
+      description?: string;
       timestamp?: string;
-      items: Array<{ type: 'heading' | 'bullet' | 'quote' | 'text' | 'timestamp-item'; content: string; timestamp?: string }>;
+      items: Array<{
+        type: 'heading' | 'bullet' | 'quote' | 'text' | 'timestamp-item' | 'alpha-list' | 'roman-list' | 'highlight-box' | 'subsection';
+        content: string;
+        timestamp?: string;
+        marker?: string;
+      }>;
     }> = [];
 
     const lines = md.split('\n');
     let currentSection: typeof sections[0] | null = null;
+    let inIntro = true; // Skip intro lines
 
     for (const line of lines) {
       const trimmed = line.trim();
       if (!trimmed) continue;
+
+      // Skip title line and intro markers
+      if (trimmed.startsWith('# ') || /^\[인트로\]|\[Intro\]/i.test(trimmed)) {
+        continue;
+      }
+
+      // Main section: "1. Title" or "2. Title" (single digit followed by dot)
+      const mainSectionMatch = trimmed.match(/^(\d+)\.\s+(.+)/);
+      if (mainSectionMatch && !trimmed.match(/^\d+\.\d+/)) {
+        inIntro = false;
+        if (currentSection) sections.push(currentSection);
+
+        currentSection = {
+          number: mainSectionMatch[1],
+          title: mainSectionMatch[2].trim(),
+          description: '',
+          items: []
+        };
+        continue;
+      }
+
+      // Skip intro text before first section
+      if (inIntro) continue;
+
+      // Subsection: "1.1 Title" or "2.1 Title" (digit.digit format)
+      const subsectionMatch = trimmed.match(/^(\d+\.\d+\.?)\s+(.+)/);
+      if (subsectionMatch && currentSection) {
+        currentSection.items.push({
+          type: 'subsection',
+          marker: subsectionMatch[1].replace(/\.$/, ''),
+          content: subsectionMatch[2].trim()
+        });
+        continue;
+      }
+
+      // Capture section description (plain text after section title, before any items)
+      if (currentSection && currentSection.items.length === 0 && !trimmed.startsWith('-') && !trimmed.startsWith('*') && !trimmed.startsWith('#') && !trimmed.startsWith('>')) {
+        // Check it's not a numbered item
+        if (!trimmed.match(/^(\d+\.|\([a-z]\)|[a-z]\.|[ivx]+\.)/i)) {
+          currentSection.description = (currentSection.description || '') + (currentSection.description ? ' ' : '') + trimmed;
+          continue;
+        }
+      }
 
       // Main heading (## or ###)
       const h2Match = trimmed.match(/^#{2,3}\s+(.+)/);
       if (h2Match) {
         if (currentSection) sections.push(currentSection);
 
-        // Extract timestamp if present [00:00:00]
-        const timestampMatch = h2Match[1].match(/\[(\d{2}:\d{2}(?::\d{2})?)\]/);
         const title = h2Match[1].replace(/\[(\d{2}:\d{2}(?::\d{2})?)\]/, '').trim();
-
         currentSection = {
+          number: String(sections.length + 1),
           title,
-          timestamp: timestampMatch?.[1],
+          description: '',
           items: []
         };
         continue;
@@ -1283,6 +1658,38 @@ export class LectureDetailComponent implements OnInit, OnDestroy {
       const h4Match = trimmed.match(/^#{4,}\s+(.+)/);
       if (h4Match && currentSection) {
         currentSection.items.push({ type: 'heading', content: h4Match[1] });
+        continue;
+      }
+
+      // Highlight box (💡 or TIP: or 팁: or 📌 or ⚠️ or NOTE:)
+      const highlightMatch = trimmed.match(/^(?:💡|TIP:|팁:|📌|⚠️|NOTE:)\s*(.+)/i);
+      if (highlightMatch && currentSection) {
+        currentSection.items.push({
+          type: 'highlight-box',
+          content: highlightMatch[1]
+        });
+        continue;
+      }
+
+      // Alphabetic list (a., b., c., ... or a), b), c), ...)
+      const alphaMatch = trimmed.match(/^([a-z])[\.\)]\s+(.+)/);
+      if (alphaMatch && currentSection) {
+        currentSection.items.push({
+          type: 'alpha-list',
+          marker: alphaMatch[1] + '.',
+          content: alphaMatch[2]
+        });
+        continue;
+      }
+
+      // Roman numeral list (i., ii., iii., iv., v., vi., vii., viii., ix., x.)
+      const romanMatch = trimmed.match(/^(i{1,3}|iv|vi{0,3}|ix|x)[\.\)]\s+(.+)/i);
+      if (romanMatch && currentSection) {
+        currentSection.items.push({
+          type: 'roman-list',
+          marker: romanMatch[1].toLowerCase() + '.',
+          content: romanMatch[2]
+        });
         continue;
       }
 
@@ -1322,6 +1729,61 @@ export class LectureDetailComponent implements OnInit, OnDestroy {
 
     if (currentSection) sections.push(currentSection);
     return sections;
+  });
+
+  // Extract table of contents from summary (Lilys style: 1., 1.1, 2., 2.1, etc.)
+  tableOfContents = computed(() => {
+    const md = this.distillation()?.summaryMd || '';
+    const toc: { level: number; title: string; id: string; number: string }[] = [];
+
+    // Pattern: "1. 제목", "1.1 제목", "2. 제목", "2.1. 제목" etc.
+    const lines = md.split('\n');
+    for (const line of lines) {
+      const trimmed = line.trim();
+      // Match numbered headings: "1. Title" or "1.1 Title" or "1.1. Title"
+      const match = trimmed.match(/^(\d+(?:\.\d+)?\.?)\s+(.+)/);
+      if (match) {
+        const num = match[1].replace(/\.$/, ''); // Remove trailing dot
+        const title = match[2].trim();
+        // Skip if title starts with special markers like ** or looks like a bullet content
+        if (title.startsWith('**') || title.length > 100) continue;
+        const level = num.includes('.') ? 2 : 1;
+        toc.push({
+          level,
+          title,
+          number: num,
+          id: `section-${num.replace(/\./g, '-')}`
+        });
+      }
+    }
+    return toc;
+  });
+
+  // Extract intro paragraph from summary (text before first numbered section)
+  extractedIntro = computed(() => {
+    const md = this.distillation()?.summaryMd || '';
+    if (!md) return '';
+
+    const lines = md.split('\n');
+    const introLines: string[] = [];
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+
+      // Stop when we hit a numbered section (1., 2., etc.) or heading
+      if (/^(\d+\.|\#{1,3}\s)/.test(trimmed)) break;
+
+      // Skip [인트로] or [Intro] markers
+      if (/^\[인트로\]|\[Intro\]/i.test(trimmed)) continue;
+
+      // Skip title line (# Title)
+      if (trimmed.startsWith('# ')) continue;
+
+      introLines.push(trimmed);
+    }
+
+    return introLines.join(' ').trim();
   });
 
   // Extract key points from summary
@@ -1516,10 +1978,40 @@ export class LectureDetailComponent implements OnInit, OnDestroy {
   });
 
   highlightKeywords(text: string): SafeHtml {
-    // Bold text between ** or __ becomes highlighted
-    let html = text
-      .replace(/\*\*([^*]+)\*\*/g, '<strong class="text-primary font-semibold">$1</strong>')
-      .replace(/__([^_]+)__/g, '<strong class="text-primary font-semibold">$1</strong>');
+    // First, handle **Keyword**: pattern (Lilys style bullet headers)
+    let html = text.replace(
+      /^\*\*([^*]+)\*\*:\s*/,
+      '<span class="inline-flex items-center gap-2 mb-1"><span class="text-cyan-400 font-semibold">$1</span><span class="text-zinc-500">:</span></span> '
+    );
+
+    // Then handle remaining **bold** text
+    html = html
+      .replace(/\*\*([^*]+)\*\*/g, '<strong class="text-theme-primary font-semibold">$1</strong>')
+      .replace(/__([^_]+)__/g, '<strong class="text-theme-primary font-semibold">$1</strong>');
+
+    // Highlight inline code (backticks)
+    html = html.replace(/`([^`]+)`/g, '<code class="inline-code">$1</code>');
+
+    // Process reference numbers [n] - make them clickable
+    html = html.replace(/\[(\d+)\]/g,
+      '<sup class="reference-num cursor-pointer hover:text-cyan-300" title="전사본 참조 $1">[$1]</sup>');
+
+    // Highlight interface names (IOfferingRepository, IService, etc.)
+    html = html.replace(/\b(I[A-Z][a-zA-Z]+(?:Repository|Service|Controller|Context|Model)?)\b/g,
+      '<code class="inline-code">$1</code>');
+
+    // Highlight PascalCase class/type names (but not at start of sentence or common words)
+    // Only if it looks like a technical term (contains common suffixes)
+    html = html.replace(/\b([A-Z][a-z]+(?:Repository|Service|Controller|Context|Model|Factory|Manager|Handler|Provider|Helper|Injection|Base))\b/g,
+      '<code class="inline-code">$1</code>');
+
+    // Highlight method calls (word followed by parentheses)
+    html = html.replace(/\b([a-zA-Z_][a-zA-Z0-9_]*)\(\)/g,
+      '<code class="inline-code">$1()</code>');
+
+    // Highlight common type keywords
+    html = html.replace(/\b(null|undefined|string|number|boolean|void|any|async|await)\b/g,
+      '<code class="inline-code">$1</code>');
 
     return this.sanitizer.bypassSecurityTrustHtml(html);
   }
@@ -1531,6 +2023,32 @@ export class LectureDetailComponent implements OnInit, OnDestroy {
     if (!content) return '';
     const html = marked(content) as string;
     return this.sanitizer.bypassSecurityTrustHtml(html);
+  }
+
+  /**
+   * Scroll to a specific section by ID
+   */
+  scrollToSection(sectionId: string) {
+    const element = document.getElementById(sectionId);
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }
+
+  /**
+   * Show original transcript text for a section
+   */
+  showOriginalText(sectionIndex: number) {
+    this.originalModalSectionIndex.set(sectionIndex);
+    this.showOriginalModal.set(true);
+  }
+
+  /**
+   * Close original text modal
+   */
+  closeOriginalModal() {
+    this.showOriginalModal.set(false);
+    this.originalModalSectionIndex.set(null);
   }
 
   // Settings methods
@@ -1992,6 +2510,9 @@ export class LectureDetailComponent implements OnInit, OnDestroy {
     if (!d) return;
 
     this.summarizing.set(true);
+    // Update local status to 'processing' so UI shows processing state
+    this.distillation.set({ ...d, status: 'processing' });
+
     this.api.summarizeLecture(d.id).subscribe({
       next: (response) => {
         this.distillation.set(response.data);
@@ -2000,6 +2521,8 @@ export class LectureDetailComponent implements OnInit, OnDestroy {
       error: (error) => {
         console.error('Failed to summarize:', error);
         this.summarizing.set(false);
+        // Revert status on error
+        this.distillation.set({ ...d, status: 'failed' });
       }
     });
   }
@@ -2238,8 +2761,40 @@ export class LectureDetailComponent implements OnInit, OnDestroy {
     }).format(date);
   }
 
+  getSourceIcon(): string {
+    const sourceType = this.distillation()?.sourceType;
+    switch (sourceType) {
+      case 'youtube': return 'pi-youtube';
+      case 'pdf': return 'pi-file-pdf';
+      case 'website': return 'pi-globe';
+      case 'text': return 'pi-align-left';
+      case 'recording': return 'pi-microphone';
+      case 'audio':
+      case 'video':
+      default: return 'pi-microphone';
+    }
+  }
+
   goBack() {
     this.router.navigate(['/dashboard']);
+  }
+
+  // User menu methods
+  userEmail() {
+    return this.supabase.user()?.email || 'User';
+  }
+
+  userInitial() {
+    return this.userEmail().charAt(0).toUpperCase();
+  }
+
+  toggleUserMenu() {
+    this.showUserMenu.update(v => !v);
+  }
+
+  async signOut() {
+    await this.supabase.signOut();
+    this.router.navigate(['/auth/login']);
   }
 
   /**

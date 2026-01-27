@@ -6,6 +6,8 @@ import { RecorderService } from '../../core/services/recorder.service';
 import { ApiService } from '../../core/services/api.service';
 import { ToastService } from '../../core/services/toast.service';
 import { AudioConverterService } from '../../core/services/audio-converter.service';
+import { ThemeService } from '../../core/services/theme.service';
+import { HeaderComponent } from '../../shared/components/header.component';
 import { ButtonModule } from 'primeng/button';
 import { CardModule } from 'primeng/card';
 import { ProgressSpinnerModule } from 'primeng/progressspinner';
@@ -16,22 +18,12 @@ type AudioSource = 'tab' | 'screen' | 'mic';
 @Component({
   selector: 'app-record',
   standalone: true,
-  imports: [CommonModule, ButtonModule, CardModule, ProgressSpinnerModule],
+  imports: [CommonModule, ButtonModule, CardModule, ProgressSpinnerModule, HeaderComponent],
   template: `
-    <div class="min-h-screen bg-surface flex flex-col">
-      <!-- Header -->
-      <header class="border-b border-zinc-800 px-6 py-4">
-        <div class="max-w-4xl mx-auto flex items-center justify-between">
-          <button
-            (click)="goBack()"
-            class="flex items-center gap-2 text-zinc-400 hover:text-white transition-colors">
-            <i class="pi pi-arrow-left"></i>
-            <span>돌아가기</span>
-          </button>
-          <h1 class="font-display text-xl font-semibold text-white">새 녹음</h1>
-          <div class="w-24"></div>
-        </div>
-      </header>
+    <div class="min-h-screen flex flex-col transition-colors duration-200"
+         [class]="theme.isDark() ? 'bg-zinc-950 text-zinc-100' : 'bg-gradient-to-br from-slate-50 to-zinc-100 text-zinc-900'">
+      <!-- Shared Header -->
+      <app-header [showBackButton]="true" [pageTitle]="'새 녹음'"></app-header>
 
       <!-- Main Content (click background to go back on select-source step) -->
       <main
@@ -44,8 +36,8 @@ type AudioSource = 'tab' | 'screen' | 'mic';
             <div class="text-center space-y-8">
               <!-- Title -->
               <div class="space-y-3">
-                <h2 class="font-display text-3xl font-bold text-white">녹음 소스 선택</h2>
-                <p class="text-zinc-400">어떤 오디오를 녹음할까요?</p>
+                <h2 class="font-display text-3xl font-bold">녹음 소스 선택</h2>
+                <p [class]="theme.isDark() ? 'text-zinc-400' : 'text-zinc-500'">어떤 오디오를 녹음할까요?</p>
               </div>
 
               <!-- Source Cards -->
@@ -53,23 +45,23 @@ type AudioSource = 'tab' | 'screen' | 'mic';
                 <!-- Tab Audio -->
                 <button
                   (click)="selectSource('tab')"
-                  class="w-full p-5 rounded-xl border-2 transition-all text-left
-                         {{ selectedSource() === 'tab'
-                            ? 'border-primary bg-primary/10'
-                            : 'border-zinc-700 bg-surface-elevated hover:border-zinc-500' }}">
+                  class="w-full p-5 rounded-xl border-2 transition-all text-left"
+                  [class]="selectedSource() === 'tab'
+                    ? 'border-cyan-500 bg-cyan-500/10'
+                    : (theme.isDark() ? 'border-zinc-700 bg-zinc-800/50 hover:border-zinc-500' : 'border-zinc-200 bg-white hover:border-zinc-300 shadow-sm')">
                   <div class="flex items-start gap-4">
-                    <div class="w-12 h-12 rounded-lg bg-primary/20 flex items-center justify-center flex-shrink-0">
-                      <i class="pi pi-window-maximize text-xl text-primary"></i>
+                    <div class="w-12 h-12 rounded-lg bg-cyan-500/20 flex items-center justify-center flex-shrink-0">
+                      <i class="pi pi-window-maximize text-xl text-cyan-500"></i>
                     </div>
                     <div class="flex-1">
-                      <h3 class="font-semibold text-white mb-1">브라우저 탭 오디오</h3>
-                      <p class="text-sm text-zinc-400">
+                      <h3 class="font-semibold mb-1">브라우저 탭 오디오</h3>
+                      <p class="text-sm" [class]="theme.isDark() ? 'text-zinc-400' : 'text-zinc-500'">
                         특정 탭에서 재생 중인 영상/강의의 오디오만 녹음합니다.
                         다른 소리는 녹음되지 않습니다.
                       </p>
                     </div>
                     @if (selectedSource() === 'tab') {
-                      <i class="pi pi-check-circle text-primary text-xl"></i>
+                      <i class="pi pi-check-circle text-cyan-500 text-xl"></i>
                     }
                   </div>
                 </button>
@@ -77,23 +69,23 @@ type AudioSource = 'tab' | 'screen' | 'mic';
                 <!-- Screen/System Audio -->
                 <button
                   (click)="selectSource('screen')"
-                  class="w-full p-5 rounded-xl border-2 transition-all text-left
-                         {{ selectedSource() === 'screen'
-                            ? 'border-primary bg-primary/10'
-                            : 'border-zinc-700 bg-surface-elevated hover:border-zinc-500' }}">
+                  class="w-full p-5 rounded-xl border-2 transition-all text-left"
+                  [class]="selectedSource() === 'screen'
+                    ? 'border-emerald-500 bg-emerald-500/10'
+                    : (theme.isDark() ? 'border-zinc-700 bg-zinc-800/50 hover:border-zinc-500' : 'border-zinc-200 bg-white hover:border-zinc-300 shadow-sm')">
                   <div class="flex items-start gap-4">
-                    <div class="w-12 h-12 rounded-lg bg-accent/20 flex items-center justify-center flex-shrink-0">
-                      <i class="pi pi-desktop text-xl text-accent"></i>
+                    <div class="w-12 h-12 rounded-lg bg-emerald-500/20 flex items-center justify-center flex-shrink-0">
+                      <i class="pi pi-desktop text-xl text-emerald-500"></i>
                     </div>
                     <div class="flex-1">
-                      <h3 class="font-semibold text-white mb-1">시스템 오디오</h3>
-                      <p class="text-sm text-zinc-400">
+                      <h3 class="font-semibold mb-1">시스템 오디오</h3>
+                      <p class="text-sm" [class]="theme.isDark() ? 'text-zinc-400' : 'text-zinc-500'">
                         컴퓨터에서 나오는 모든 소리를 녹음합니다.
                         화면 선택 후 오디오만 캡처됩니다.
                       </p>
                     </div>
                     @if (selectedSource() === 'screen') {
-                      <i class="pi pi-check-circle text-primary text-xl"></i>
+                      <i class="pi pi-check-circle text-emerald-500 text-xl"></i>
                     }
                   </div>
                 </button>
@@ -101,23 +93,23 @@ type AudioSource = 'tab' | 'screen' | 'mic';
                 <!-- Microphone -->
                 <button
                   (click)="selectSource('mic')"
-                  class="w-full p-5 rounded-xl border-2 transition-all text-left
-                         {{ selectedSource() === 'mic'
-                            ? 'border-primary bg-primary/10'
-                            : 'border-zinc-700 bg-surface-elevated hover:border-zinc-500' }}">
+                  class="w-full p-5 rounded-xl border-2 transition-all text-left"
+                  [class]="selectedSource() === 'mic'
+                    ? 'border-orange-500 bg-orange-500/10'
+                    : (theme.isDark() ? 'border-zinc-700 bg-zinc-800/50 hover:border-zinc-500' : 'border-zinc-200 bg-white hover:border-zinc-300 shadow-sm')">
                   <div class="flex items-start gap-4">
                     <div class="w-12 h-12 rounded-lg bg-orange-500/20 flex items-center justify-center flex-shrink-0">
                       <i class="pi pi-microphone text-xl text-orange-500"></i>
                     </div>
                     <div class="flex-1">
-                      <h3 class="font-semibold text-white mb-1">마이크</h3>
-                      <p class="text-sm text-zinc-400">
+                      <h3 class="font-semibold mb-1">마이크</h3>
+                      <p class="text-sm" [class]="theme.isDark() ? 'text-zinc-400' : 'text-zinc-500'">
                         마이크로 직접 녹음합니다.
                         오프라인 강의나 회의 녹음에 적합합니다.
                       </p>
                     </div>
                     @if (selectedSource() === 'mic') {
-                      <i class="pi pi-check-circle text-primary text-xl"></i>
+                      <i class="pi pi-check-circle text-orange-500 text-xl"></i>
                     }
                   </div>
                 </button>
@@ -127,9 +119,12 @@ type AudioSource = 'tab' | 'screen' | 'mic';
               <button
                 (click)="confirmSource()"
                 [disabled]="!selectedSource()"
-                class="btn-primary text-lg px-8 py-4 rounded-xl flex items-center gap-3 mx-auto
+                class="text-lg px-8 py-4 rounded-xl flex items-center gap-3 mx-auto
                        disabled:opacity-50 disabled:cursor-not-allowed
-                       hover:scale-105 transition-transform duration-200">
+                       hover:scale-105 transition-transform duration-200"
+                [class]="theme.isDark()
+                  ? 'bg-cyan-500 hover:bg-cyan-400 text-zinc-900'
+                  : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-md'">
                 <span>다음</span>
                 <i class="pi pi-arrow-right"></i>
               </button>
@@ -141,27 +136,28 @@ type AudioSource = 'tab' | 'screen' | 'mic';
             <div class="text-center space-y-8">
               <!-- Icon -->
               <div class="relative inline-block">
-                <div class="w-32 h-32 rounded-full bg-gradient-to-br from-primary/20 to-accent/20
-                            flex items-center justify-center border border-zinc-700">
+                <div class="w-32 h-32 rounded-full bg-gradient-to-br from-cyan-500/20 to-emerald-500/20
+                            flex items-center justify-center border"
+                     [class]="theme.isDark() ? 'border-zinc-700' : 'border-zinc-200'">
                   @switch (selectedSource()) {
                     @case ('tab') {
-                      <i class="pi pi-window-maximize text-5xl text-primary"></i>
+                      <i class="pi pi-window-maximize text-5xl text-cyan-500"></i>
                     }
                     @case ('screen') {
-                      <i class="pi pi-desktop text-5xl text-accent"></i>
+                      <i class="pi pi-desktop text-5xl text-emerald-500"></i>
                     }
                     @case ('mic') {
                       <i class="pi pi-microphone text-5xl text-orange-500"></i>
                     }
                   }
                 </div>
-                <div class="absolute -inset-4 rounded-full border border-primary/30 animate-pulse"></div>
+                <div class="absolute -inset-4 rounded-full border border-cyan-500/30 animate-pulse"></div>
               </div>
 
               <!-- Title -->
               <div class="space-y-3">
-                <h2 class="font-display text-3xl font-bold text-white">녹음 준비 완료</h2>
-                <p class="text-zinc-400 max-w-md mx-auto">
+                <h2 class="font-display text-3xl font-bold">녹음 준비 완료</h2>
+                <p class="max-w-md mx-auto" [class]="theme.isDark() ? 'text-zinc-400' : 'text-zinc-500'">
                   @switch (selectedSource()) {
                     @case ('tab') {
                       녹음 시작 후 오디오를 캡처할 탭을 선택하세요.
@@ -180,8 +176,11 @@ type AudioSource = 'tab' | 'screen' | 'mic';
               <button
                 (click)="startRecording()"
                 [disabled]="isLoading()"
-                class="btn-primary text-lg px-8 py-4 rounded-xl flex items-center gap-3 mx-auto
-                       hover:scale-105 transition-transform duration-200">
+                class="text-lg px-8 py-4 rounded-xl flex items-center gap-3 mx-auto
+                       hover:scale-105 transition-transform duration-200"
+                [class]="theme.isDark()
+                  ? 'bg-cyan-500 hover:bg-cyan-400 text-zinc-900'
+                  : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-md'">
                 @if (isLoading()) {
                   <i class="pi pi-spin pi-spinner"></i>
                 } @else {
@@ -193,18 +192,21 @@ type AudioSource = 'tab' | 'screen' | 'mic';
               <!-- Change Source -->
               <button
                 (click)="changeSource()"
-                class="text-zinc-400 hover:text-white transition-colors text-sm flex items-center gap-2 mx-auto">
+                class="transition-colors text-sm flex items-center gap-2 mx-auto"
+                [class]="theme.isDark() ? 'text-zinc-400 hover:text-white' : 'text-zinc-500 hover:text-zinc-900'">
                 <i class="pi pi-arrow-left"></i>
                 <span>소스 변경</span>
               </button>
 
               <!-- Tips -->
-              <div class="bg-surface-elevated rounded-xl p-4 text-left border border-zinc-700 max-w-md mx-auto">
-                <h3 class="text-sm font-semibold text-zinc-300 mb-2 flex items-center gap-2">
-                  <i class="pi pi-info-circle text-primary"></i>
+              <div class="rounded-xl p-4 text-left border max-w-md mx-auto"
+                   [class]="theme.isDark() ? 'bg-zinc-800/50 border-zinc-700' : 'bg-white border-zinc-200 shadow-sm'">
+                <h3 class="text-sm font-semibold mb-2 flex items-center gap-2"
+                    [class]="theme.isDark() ? 'text-zinc-300' : 'text-zinc-700'">
+                  <i class="pi pi-info-circle text-cyan-500"></i>
                   녹음 팁
                 </h3>
-                <ul class="text-sm text-zinc-400 space-y-1">
+                <ul class="text-sm space-y-1" [class]="theme.isDark() ? 'text-zinc-400' : 'text-zinc-500'">
                   @switch (selectedSource()) {
                     @case ('tab') {
                       <li>• 강의 영상이 재생 중인 탭을 선택하세요</li>
@@ -245,7 +247,7 @@ type AudioSource = 'tab' | 'screen' | 'mic';
                   <span class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
                   녹음 중
                 </p>
-                <p class="font-mono text-5xl font-bold text-white tracking-wider">
+                <p class="font-mono text-5xl font-bold tracking-wider">
                   {{ formattedDuration() }}
                 </p>
               </div>
@@ -255,14 +257,15 @@ type AudioSource = 'tab' | 'screen' | 'mic';
                 @if (!recorderState().isPaused) {
                   <button
                     (click)="pauseRecording()"
-                    class="btn-secondary flex items-center gap-2 px-6 py-3">
+                    class="flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-colors"
+                    [class]="theme.isDark() ? 'bg-zinc-700 hover:bg-zinc-600 text-white' : 'bg-zinc-200 hover:bg-zinc-300 text-zinc-900'">
                     <i class="pi pi-pause"></i>
                     <span>일시정지</span>
                   </button>
                 } @else {
                   <button
                     (click)="resumeRecording()"
-                    class="btn-accent flex items-center gap-2 px-6 py-3">
+                    class="flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-colors bg-emerald-500 hover:bg-emerald-600 text-white">
                     <i class="pi pi-play"></i>
                     <span>재개</span>
                   </button>
@@ -278,7 +281,7 @@ type AudioSource = 'tab' | 'screen' | 'mic';
               </div>
 
               <!-- Recording Info -->
-              <p class="text-sm text-zinc-500">
+              <p class="text-sm" [class]="theme.isDark() ? 'text-zinc-500' : 'text-zinc-400'">
                 녹음이 완료되면 AI가 노트를 작성합니다
               </p>
             </div>
@@ -289,23 +292,24 @@ type AudioSource = 'tab' | 'screen' | 'mic';
             <div class="text-center space-y-8">
               <!-- Success Icon -->
               <div class="relative inline-block">
-                <div class="w-32 h-32 rounded-full bg-gradient-to-br from-accent/20 to-green-500/20
-                            flex items-center justify-center border border-accent">
-                  <i class="pi pi-check-circle text-5xl text-accent"></i>
+                <div class="w-32 h-32 rounded-full bg-gradient-to-br from-emerald-500/20 to-green-500/20
+                            flex items-center justify-center border border-emerald-500">
+                  <i class="pi pi-check-circle text-5xl text-emerald-500"></i>
                 </div>
               </div>
 
               <!-- Title -->
               <div class="space-y-3">
-                <h2 class="font-display text-3xl font-bold text-white">녹음 완료!</h2>
-                <p class="text-zinc-400">
+                <h2 class="font-display text-3xl font-bold">녹음 완료!</h2>
+                <p [class]="theme.isDark() ? 'text-zinc-400' : 'text-zinc-500'">
                   총 {{ formattedDuration() }} 분량이 녹음되었습니다
                 </p>
               </div>
 
               <!-- Audio Preview -->
               @if (audioUrl()) {
-                <div class="bg-surface-elevated rounded-xl p-6 border border-zinc-700 max-w-md mx-auto">
+                <div class="rounded-xl p-6 border max-w-md mx-auto"
+                     [class]="theme.isDark() ? 'bg-zinc-800/50 border-zinc-700' : 'bg-white border-zinc-200 shadow-sm'">
                   <audio [src]="audioUrl()" controls class="w-full"></audio>
                 </div>
               }
@@ -315,7 +319,8 @@ type AudioSource = 'tab' | 'screen' | 'mic';
                 <button
                   (click)="downloadAudio()"
                   [disabled]="audioConverter.converting()"
-                  class="btn-secondary flex items-center gap-2 px-6 py-3">
+                  class="flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-colors"
+                  [class]="theme.isDark() ? 'bg-zinc-700 hover:bg-zinc-600 text-white' : 'bg-zinc-200 hover:bg-zinc-300 text-zinc-900'">
                   @if (audioConverter.converting()) {
                     <i class="pi pi-spin pi-spinner"></i>
                     <span>MP3 변환 중... {{ audioConverter.progress() }}%</span>
@@ -328,7 +333,10 @@ type AudioSource = 'tab' | 'screen' | 'mic';
                 <button
                   (click)="startDistillation()"
                   [disabled]="uploading()"
-                  class="btn-primary flex items-center gap-2 px-6 py-3">
+                  class="flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-colors"
+                  [class]="theme.isDark()
+                    ? 'bg-cyan-500 hover:bg-cyan-400 text-zinc-900'
+                    : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-md'">
                   @if (uploading()) {
                     <i class="pi pi-spin pi-spinner"></i>
                     <span>업로드 중...</span>
@@ -342,7 +350,8 @@ type AudioSource = 'tab' | 'screen' | 'mic';
               <!-- New Recording -->
               <button
                 (click)="resetRecording()"
-                class="text-zinc-400 hover:text-white transition-colors text-sm flex items-center gap-2 mx-auto">
+                class="transition-colors text-sm flex items-center gap-2 mx-auto"
+                [class]="theme.isDark() ? 'text-zinc-400 hover:text-white' : 'text-zinc-500 hover:text-zinc-900'">
                 <i class="pi pi-refresh"></i>
                 <span>새 녹음 시작</span>
               </button>
@@ -354,22 +363,22 @@ type AudioSource = 'tab' | 'screen' | 'mic';
             <div class="text-center space-y-8">
               <!-- Uploading Icon -->
               <div class="relative inline-block">
-                <div class="w-32 h-32 rounded-full bg-gradient-to-br from-primary/20 to-accent/20
-                            flex items-center justify-center border border-primary">
-                  <i class="pi pi-spin pi-spinner text-4xl text-primary"></i>
+                <div class="w-32 h-32 rounded-full bg-gradient-to-br from-cyan-500/20 to-emerald-500/20
+                            flex items-center justify-center border border-cyan-500">
+                  <i class="pi pi-spin pi-spinner text-4xl text-cyan-500"></i>
                 </div>
               </div>
 
               <!-- Title -->
               <div class="space-y-3">
-                <h2 class="font-display text-3xl font-bold text-white">
+                <h2 class="font-display text-3xl font-bold">
                   @if (uploadProgress() < 100) {
                     업로드 중...
                   } @else {
                     AI 분석 중...
                   }
                 </h2>
-                <p class="text-zinc-400">
+                <p [class]="theme.isDark() ? 'text-zinc-400' : 'text-zinc-500'">
                   @if (uploadProgress() < 100) {
                     오디오 파일을 서버에 업로드하고 있습니다
                   } @else {
@@ -380,13 +389,14 @@ type AudioSource = 'tab' | 'screen' | 'mic';
 
               <!-- Progress -->
               <div class="max-w-md mx-auto">
-                <div class="h-2 bg-zinc-700 rounded-full overflow-hidden">
+                <div class="h-2 rounded-full overflow-hidden"
+                     [class]="theme.isDark() ? 'bg-zinc-700' : 'bg-zinc-200'">
                   <div
-                    class="h-full bg-primary transition-all duration-300"
+                    class="h-full bg-cyan-500 transition-all duration-300"
                     [style.width.%]="uploadProgress()">
                   </div>
                 </div>
-                <p class="text-sm text-zinc-500 mt-2">{{ uploadProgress() }}%</p>
+                <p class="text-sm mt-2" [class]="theme.isDark() ? 'text-zinc-500' : 'text-zinc-400'">{{ uploadProgress() }}%</p>
               </div>
             </div>
           }
@@ -408,6 +418,7 @@ export class RecordComponent implements OnDestroy {
   private titleService = inject(Title);
   private toast = inject(ToastService);
   audioConverter = inject(AudioConverterService);
+  theme = inject(ThemeService);
 
   private originalTitle = 'Distillai';
 
@@ -541,7 +552,7 @@ export class RecordComponent implements OnDestroy {
       this.uploadProgress.set(10);
       const createResponse = await new Promise<any>((resolve, reject) => {
         this.api.createLecture({
-          title: `녹음 ${new Date().toLocaleDateString('ko-KR')}`,
+          title: `녹음 ${new Date().toLocaleDateString('ko-KR')}...`,
         }).subscribe({
           next: resolve,
           error: reject
@@ -551,8 +562,9 @@ export class RecordComponent implements OnDestroy {
       const distillationId = createResponse.data.id;
       this.uploadProgress.set(30);
 
-      // 2. Upload audio file
-      await this.api.uploadAudio(distillationId, blob);
+      // 2. Upload audio file with duration
+      const durationSeconds = Math.round(this.recorderState().duration / 1000);
+      await this.api.uploadAudio(distillationId, blob, durationSeconds);
       this.uploadProgress.set(60);
 
       // 3. Start AI summarization

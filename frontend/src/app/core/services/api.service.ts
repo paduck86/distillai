@@ -88,6 +88,9 @@ export interface SmartFolder {
 // Legacy alias
 export type Lecture = Distillation;
 
+// Supported languages for summarization
+export type SupportedLanguage = 'ko' | 'en';
+
 export interface ChatMessage {
   id: string;
   userId: string;
@@ -193,10 +196,13 @@ export class ApiService {
     return this.request('DELETE', `/lectures/${id}`);
   }
 
-  async uploadAudio(lectureId: string, file: Blob): Promise<ApiResponse<Lecture>> {
+  async uploadAudio(lectureId: string, file: Blob, durationSeconds?: number): Promise<ApiResponse<Lecture>> {
     const token = await this.supabase.getAccessToken();
     const formData = new FormData();
     formData.append('audio', file, 'recording.webm');
+    if (durationSeconds !== undefined) {
+      formData.append('durationSeconds', String(Math.round(durationSeconds)));
+    }
 
     const response = await fetch(`${this.baseUrl}/lectures/${lectureId}/upload`, {
       method: 'POST',
@@ -213,8 +219,20 @@ export class ApiService {
     return response.json();
   }
 
-  summarizeLecture(id: string): Observable<ApiResponse<Lecture>> {
-    return this.request('POST', `/lectures/${id}/summarize`);
+  /**
+   * Get browser language preference (ko or en)
+   */
+  private getBrowserLanguage(): SupportedLanguage {
+    const saved = localStorage.getItem('lang');
+    if (saved === 'ko' || saved === 'en') return saved;
+
+    const browserLang = navigator.language.slice(0, 2);
+    return browserLang === 'ko' ? 'ko' : 'en';
+  }
+
+  summarizeLecture(id: string, language?: SupportedLanguage): Observable<ApiResponse<Lecture>> {
+    const lang = language || this.getBrowserLanguage();
+    return this.request('POST', `/lectures/${id}/summarize`, { language: lang });
   }
 
   // Chat (Agent D)
@@ -278,6 +296,11 @@ export class ApiService {
   // Import from external URL
   createFromUrl(url: string, categoryId?: string): Observable<ApiResponse<Lecture>> {
     return this.request('POST', '/lectures/url', { url, categoryId });
+  }
+
+  // Import from text
+  createFromText(text: string, title?: string, categoryId?: string): Observable<ApiResponse<Lecture>> {
+    return this.request('POST', '/lectures/text', { text, title, categoryId });
   }
 
   // Upload file with progress tracking

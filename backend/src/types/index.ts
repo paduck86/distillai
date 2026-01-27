@@ -236,6 +236,7 @@ export interface CategoryExtractionResult {
 export interface SummarizeResult {
   summary: string;
   transcript: string;
+  suggestedTitle?: string;                // AI 추천 제목 (텍스트 입력 시)
   aiCategory?: CategoryExtractionResult;  // AI 카테고리 추천
 }
 
