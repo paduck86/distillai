@@ -55,13 +55,13 @@ export function errorHandler(
   res: Response,
   next: NextFunction
 ) {
-  // Log error for debugging
+  // Log error for debugging (always log full details in server logs)
   console.error(`[${new Date().toISOString()}] Error:`, {
     name: err.name,
     message: err.message,
     path: req.path,
     method: req.method,
-    stack: process.env.NODE_ENV === 'development' ? err.stack : undefined,
+    stack: err.stack,
   });
 
   // Handle known errors
@@ -89,9 +89,8 @@ export function errorHandler(
   return res.status(500).json({
     error: {
       code: 'INTERNAL_ERROR',
-      message: process.env.NODE_ENV === 'production'
-        ? 'An unexpected error occurred'
-        : err.message,
+      message: err.message,  // Always show error message for debugging
+      details: err.name,
     },
   });
 }
