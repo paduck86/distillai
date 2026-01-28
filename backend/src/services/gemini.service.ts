@@ -11,8 +11,8 @@ import crypto from 'crypto';
 const genAI = env.GEMINI_API_KEY ? new GoogleGenerativeAI(env.GEMINI_API_KEY) : null;
 const fileManager = env.GEMINI_API_KEY ? new GoogleAIFileManager(env.GEMINI_API_KEY) : null;
 
-const SUMMARIZE_MODEL = 'gemini-3-flash-preview';  // 요약용 (최신 고품질)
-const CHAT_MODEL = 'gemini-2.0-flash';       // 채팅용 (빠른 응답)
+const SUMMARIZE_MODEL = 'gemini-pro';  // 요약용 (안정적)
+const CHAT_MODEL = 'gemini-pro';       // 채팅용 (빠름)
 
 // 20MB 이상이면 File API 사용 (inlineData 제한)
 const INLINE_DATA_LIMIT = 20 * 1024 * 1024;
@@ -66,7 +66,7 @@ async function uploadLargeAudioFile(
     return { uri: file.uri, name: file.name };
   } finally {
     // 임시 파일 정리
-    await fs.unlink(tempPath).catch(() => {});
+    await fs.unlink(tempPath).catch(() => { });
   }
 }
 

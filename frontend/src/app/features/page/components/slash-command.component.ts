@@ -17,34 +17,34 @@ import { SLASH_COMMANDS, SlashCommand, SlashCommandCategory } from '../../../cor
   imports: [CommonModule, FormsModule],
   template: `
     <div
-      class="slash-command-palette fixed z-50 w-80 max-h-96 overflow-hidden rounded-xl shadow-2xl"
-      [class]="theme.isDark() ? 'bg-zinc-800 border border-zinc-700' : 'bg-white border border-zinc-200'"
+      class="slash-command-palette fixed z-50 w-60 max-h-[280px] overflow-hidden rounded-lg shadow-xl border"
+      [class]="theme.isDark() ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-zinc-200'"
       [style.left.px]="position.x"
       [style.top.px]="position.y">
 
-      <!-- Search Input -->
-      <div class="p-3 border-b" [class]="theme.isDark() ? 'border-zinc-700' : 'border-zinc-200'">
+      <!-- Search Input (Hidden but focusable, or very minimal) -->
+      <div class="p-1.5 border-b" [class]="theme.isDark() ? 'border-zinc-700' : 'border-zinc-100'">
         <input
           #searchInput
           type="text"
           [(ngModel)]="searchQuery"
           (input)="onSearch()"
-          (keydown)="onKeyDown($event)"
-          placeholder="블록 검색..."
-          class="w-full px-3 py-2 rounded-lg text-sm bg-transparent
-                 border outline-none focus:ring-2 focus:ring-cyan-500"
+          (keydown)="onInputKeyDown($event)"
+          placeholder="Filter..."
+          class="w-full px-1.5 py-0.5 text-[11px] bg-transparent
+                 outline-none placeholder:opacity-50"
           [class]="theme.isDark()
-            ? 'border-zinc-600 text-white placeholder:text-zinc-500'
-            : 'border-zinc-300 text-zinc-900 placeholder:text-zinc-400'"
+            ? 'text-white placeholder:text-zinc-500'
+            : 'text-zinc-900 placeholder:text-zinc-400'"
           autofocus />
       </div>
 
       <!-- Command List -->
-      <div class="overflow-y-auto max-h-72 py-2">
+      <div class="overflow-y-auto max-h-[240px] py-1">
         @for (category of categories; track category) {
           @if (getCommandsByCategory(category).length > 0) {
             <!-- Category Header -->
-            <div class="px-4 py-2 text-xs font-medium uppercase opacity-50">
+            <div class="px-2 py-1 text-[9px] font-semibold text-zinc-500 uppercase tracking-wider mt-1 first:mt-0">
               {{ getCategoryLabel(category) }}
             </div>
 
@@ -53,29 +53,32 @@ import { SLASH_COMMANDS, SlashCommand, SlashCommandCategory } from '../../../cor
               <button
                 (click)="selectCommand(command)"
                 (mouseenter)="selectedIndex.set(getGlobalIndex(category, i))"
-                class="w-full px-4 py-2 flex items-center gap-3 text-left transition-colors"
+                class="w-full px-2 py-1 flex items-center gap-2 text-left transition-colors scroll-m-1"
                 [class]="selectedIndex() === getGlobalIndex(category, i)
-                  ? (theme.isDark() ? 'bg-zinc-700' : 'bg-zinc-100')
-                  : 'hover:bg-zinc-100 dark:hover:bg-zinc-700'">
+                  ? (theme.isDark() ? 'bg-zinc-700/50' : 'bg-zinc-100')
+                  : 'hover:bg-zinc-50 dark:hover:bg-zinc-700/30'">
                 <!-- Icon -->
-                <div class="w-10 h-10 rounded-lg flex items-center justify-center"
-                     [class]="getIconBgClass(command.category)">
-                  <i [class]="'pi ' + command.icon" [class]="getIconColorClass(command.category)"></i>
+                <div class="w-6 h-6 rounded border shadow-sm flex items-center justify-center shrink-0 bg-white dark:bg-zinc-700 dark:border-zinc-600">
+                   @if (category === 'ai') {
+                     <i [class]="'pi ' + command.icon + ' text-violet-500 text-[10px]'"></i>
+                   } @else {
+                     <img *ngIf="command.icon.startsWith('http')" [src]="command.icon" class="w-3 h-3" />
+                     <i *ngIf="!command.icon.startsWith('http')" [class]="'pi ' + command.icon + ' text-zinc-600 dark:text-zinc-300 text-[10px]'"></i>
+                   }
                 </div>
 
                 <!-- Label & Description -->
                 <div class="flex-1 min-w-0">
-                  <div class="font-medium text-sm">{{ command.label }}</div>
-                  <div class="text-xs opacity-50 truncate">{{ command.description }}</div>
+                  <div class="flex items-center justify-between">
+                    <span class="text-[11px] font-medium" [class]="theme.isDark() ? 'text-zinc-200' : 'text-zinc-700'">
+                      {{ command.label }}
+                    </span>
+                    @if (command.shortcut) {
+                       <span class="text-[9px] opacity-40 font-mono ml-2 border px-1 rounded bg-zinc-50 dark:bg-zinc-800">{{ command.shortcut }}</span>
+                    }
+                  </div>
+                  <div class="text-[9px] opacity-50 truncate leading-tight">{{ command.description }}</div>
                 </div>
-
-                <!-- Shortcut -->
-                @if (command.shortcut) {
-                  <kbd class="text-xs px-2 py-1 rounded opacity-50"
-                       [class]="theme.isDark() ? 'bg-zinc-700' : 'bg-zinc-200'">
-                    {{ command.shortcut }}
-                  </kbd>
-                }
               </button>
             }
           }
@@ -83,19 +86,10 @@ import { SLASH_COMMANDS, SlashCommand, SlashCommandCategory } from '../../../cor
 
         <!-- No Results -->
         @if (filteredCommands().length === 0) {
-          <div class="px-4 py-8 text-center opacity-50">
-            <i class="pi pi-search text-2xl mb-2"></i>
-            <p class="text-sm">검색 결과가 없습니다</p>
+          <div class="px-2 py-3 text-center opacity-50 text-[10px]">
+            <p>No results</p>
           </div>
         }
-      </div>
-
-      <!-- Footer Hint -->
-      <div class="px-4 py-2 border-t text-xs opacity-50 flex items-center gap-4"
-           [class]="theme.isDark() ? 'border-zinc-700' : 'border-zinc-200'">
-        <span><kbd class="px-1 rounded bg-zinc-200 dark:bg-zinc-700">↑↓</kbd> 이동</span>
-        <span><kbd class="px-1 rounded bg-zinc-200 dark:bg-zinc-700">↵</kbd> 선택</span>
-        <span><kbd class="px-1 rounded bg-zinc-200 dark:bg-zinc-700">Esc</kbd> 닫기</span>
       </div>
     </div>
   `,
@@ -128,7 +122,7 @@ export class SlashCommandComponent implements OnInit {
   searchQuery = '';
   selectedIndex = signal(0);
 
-  categories: SlashCommandCategory[] = ['basic', 'ai', 'media', 'advanced'];
+  categories: SlashCommandCategory[] = ['ai', 'basic', 'media', 'advanced'];
   allCommands = SLASH_COMMANDS;
   filteredCommands = signal<SlashCommand[]>(SLASH_COMMANDS);
 
@@ -150,44 +144,74 @@ export class SlashCommandComponent implements OnInit {
 
   onSearch() {
     const query = this.searchQuery.toLowerCase().trim();
+    // Remove leading slash if creating shortcut like /h1
+    const cleanQuery = query.startsWith('/') ? query.substring(1) : query;
 
     if (!query) {
       this.filteredCommands.set(this.allCommands);
     } else {
       this.filteredCommands.set(
         this.allCommands.filter(cmd =>
-          cmd.label.toLowerCase().includes(query) ||
-          cmd.labelEn.toLowerCase().includes(query) ||
-          cmd.description.toLowerCase().includes(query) ||
-          cmd.id.includes(query)
+          cmd.label.toLowerCase().includes(cleanQuery) ||
+          cmd.labelEn.toLowerCase().includes(cleanQuery) ||
+          cmd.description.toLowerCase().includes(cleanQuery) ||
+          cmd.id.includes(cleanQuery) ||
+          (cmd.shortcut && cmd.shortcut.toLowerCase().includes(query)) // Search by shortcut (with /)
         )
       );
+      // Force rebuild trigger - Timestamp: 2026-01-27
     }
 
     this.selectedIndex.set(0);
   }
 
-  onKeyDown(event: KeyboardEvent) {
-    const commands = this.filteredCommands();
+  // Handle keys from Input
+  onInputKeyDown(event: KeyboardEvent) {
+    if (['ArrowUp', 'ArrowDown', 'Enter'].includes(event.key)) {
+      event.preventDefault();
+      this.handleNavigation(event.key);
+    }
+  }
+
+  // Handle global keys (in case focus is lost but menu is open)
+  @HostListener('document:keydown', ['$event'])
+  onDocumentKeyDown(event: KeyboardEvent) {
+    // If input is focused, let onInputKeyDown handle it to avoid double handling
+    if (document.activeElement === this.elementRef.nativeElement.querySelector('input')) {
+      return;
+    }
+
+    if (['ArrowUp', 'ArrowDown', 'Enter'].includes(event.key)) {
+      event.preventDefault();
+      this.handleNavigation(event.key);
+    }
+  }
+
+  private handleNavigation(key: string) {
+    constcommands = this.filteredCommands();
     const max = commands.length - 1;
 
-    switch (event.key) {
+    switch (key) {
       case 'ArrowDown':
-        event.preventDefault();
         this.selectedIndex.set(Math.min(this.selectedIndex() + 1, max));
+        this.scrollToSelected();
         break;
       case 'ArrowUp':
-        event.preventDefault();
         this.selectedIndex.set(Math.max(this.selectedIndex() - 1, 0));
+        this.scrollToSelected();
         break;
       case 'Enter':
-        event.preventDefault();
         const selected = commands[this.selectedIndex()];
         if (selected) {
           this.selectCommand(selected);
         }
         break;
     }
+  }
+
+  private scrollToSelected() {
+    // Simple scroll into view logic could be added here if needed
+    // For now we rely on user scrolling or minimal height
   }
 
   selectCommand(command: SlashCommand) {

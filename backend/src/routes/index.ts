@@ -3,7 +3,7 @@ import { authMiddleware } from '../middleware/auth.middleware.js';
 
 // Import route handlers
 import folderRoutes from './folder.routes.js';
-import lectureRoutes from './lecture.routes.js';
+import pageRoutes from './page.routes.js';
 import chatRoutes from './chat.routes.js';
 import categoryRoutes from './category.routes.js';
 import blockRoutes from './block.routes.js';
@@ -26,7 +26,7 @@ router.get('/health', (req, res) => {
 
 // Protected routes
 router.use('/folders', authMiddleware, folderRoutes);
-router.use('/lectures', authMiddleware, lectureRoutes);
+router.use('/pages', authMiddleware, pageRoutes);
 router.use('/chat', authMiddleware, chatRoutes);
 router.use('/categories', authMiddleware, categoryRoutes);
 router.use('/blocks', blockRoutes);  // auth middleware is inside

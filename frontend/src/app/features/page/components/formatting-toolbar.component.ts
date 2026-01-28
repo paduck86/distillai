@@ -1,403 +1,279 @@
 /**
  * Formatting Toolbar Component
  *
- * 인라인 포맷팅 툴바 (플로팅)
- * 텍스트 선택 시 나타나며 bold, italic, link, highlight 등 적용 가능
+ * 텍스트 선택 시 나타나는 플로팅 툴바
+ * Bold, Italic, Link, Color 등의 인라인 포맷팅 기능 제공
  */
 
-import { Component, Input, Output, EventEmitter, inject, signal, OnInit, OnDestroy, HostListener, ElementRef } from '@angular/core';
+import { Component, EventEmitter, Output, inject, effect, computed, ElementRef, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ThemeService } from '../../../core/services/theme.service';
 import { SelectionService } from '../../../core/services/selection.service';
-
-export interface ToolbarPosition {
-  x: number;
-  y: number;
-}
 
 @Component({
   selector: 'app-formatting-toolbar',
   standalone: true,
   imports: [CommonModule, FormsModule],
   template: `
-    @if (visible() && position()) {
+    @if (selection.state().hasSelection && selection.state().rect) {
       <div
-        class="formatting-toolbar fixed z-50 flex items-center gap-0.5 p-1 rounded-lg shadow-xl border animate-fade-in"
-        [class]="theme.isDark()
-          ? 'bg-zinc-800 border-zinc-700'
-          : 'bg-white border-zinc-200'"
-        [style.left.px]="position()!.x"
-        [style.top.px]="position()!.y - 48"
-        [style.transform]="'translateX(-50%)'"
-        (mousedown)="$event.preventDefault()">
-
-        <!-- Bold -->
+        class="formatting-toolbar fixed z-50 rounded-lg shadow-xl flex items-center p-1 gap-0.5 transition-all duration-200"
+        [class]="theme.isDark() ? 'bg-zinc-800 border border-zinc-700' : 'bg-white border border-zinc-200'"
+        [style.top.px]="top()"
+        [style.left.px]="left()"
+        (mousedown)="$event.preventDefault()" 
+        (click)="$event.stopPropagation()">
+        
+        <!-- AI Action -->
         <button
-          type="button"
-          (click)="onBold()"
-          class="toolbar-btn"
-          [class.active]="selection.isBold()"
-          [class]="getButtonClasses(selection.isBold())"
-          title="굵게 (Ctrl+B)">
-          <i class="pi pi-bold text-sm"></i>
+          (click)="onAiAction()"
+          class="flex items-center gap-1 px-2 py-1.5 rounded text-xs font-medium transition-colors mr-1"
+          [class]="theme.isDark() 
+            ? 'hover:bg-zinc-700 text-purple-400 hover:text-purple-300' 
+            : 'hover:bg-purple-50 text-purple-600 hover:text-purple-700'">
+          <i class="pi pi-sparkles"></i>
+          <span>Ask AI</span>
         </button>
 
-        <!-- Italic -->
+        <div class="w-px h-4 mx-1" [class]="theme.isDark() ? 'bg-zinc-700' : 'bg-zinc-200'"></div>
+
+        <!-- Text Styles -->
         <button
-          type="button"
-          (click)="onItalic()"
-          class="toolbar-btn"
-          [class.active]="selection.isItalic()"
-          [class]="getButtonClasses(selection.isItalic())"
-          title="기울임 (Ctrl+I)">
-          <i class="pi pi-italic text-sm"></i>
+          (click)="selection.toggleBold()"
+          class="w-7 h-7 rounded flex items-center justify-center transition-colors"
+          [class.bg-cyan-500]="selection.isBold()"
+          [class.text-white]="selection.isBold()"
+          [class]="!selection.isBold() ? (theme.isDark() ? 'hover:bg-zinc-700 text-zinc-400' : 'hover:bg-zinc-100 text-zinc-600') : ''"
+          title="Bold (Cmd+B)">
+          <i class="pi pi-bold text-xs"></i>
         </button>
 
-        <!-- Underline -->
         <button
-          type="button"
-          (click)="onUnderline()"
-          class="toolbar-btn"
-          [class.active]="selection.isUnderline()"
-          [class]="getButtonClasses(selection.isUnderline())"
-          title="밑줄 (Ctrl+U)">
-          <i class="pi pi-underline text-sm"></i>
+          (click)="selection.toggleItalic()"
+          class="w-7 h-7 rounded flex items-center justify-center transition-colors"
+          [class.bg-cyan-500]="selection.isItalic()"
+          [class.text-white]="selection.isItalic()"
+          [class]="!selection.isItalic() ? (theme.isDark() ? 'hover:bg-zinc-700 text-zinc-400' : 'hover:bg-zinc-100 text-zinc-600') : ''"
+          title="Italic (Cmd+I)">
+          <i class="pi pi-italic text-xs"></i>
         </button>
 
-        <!-- Strikethrough -->
         <button
-          type="button"
-          (click)="onStrikethrough()"
-          class="toolbar-btn"
-          [class.active]="selection.isStrikethrough()"
-          [class]="getButtonClasses(selection.isStrikethrough())"
-          title="취소선">
-          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M10 19h4v-3h-4v3zM5 4v3h5v3h4V7h5V4H5zM3 14h18v-2H3v2z"/>
-          </svg>
+          (click)="selection.toggleUnderline()"
+          class="w-7 h-7 rounded flex items-center justify-center transition-colors"
+          [class.bg-cyan-500]="selection.isUnderline()"
+          [class.text-white]="selection.isUnderline()"
+          [class]="!selection.isUnderline() ? (theme.isDark() ? 'hover:bg-zinc-700 text-zinc-400' : 'hover:bg-zinc-100 text-zinc-600') : ''"
+          title="Underline (Cmd+U)">
+          <i class="pi pi-underline text-xs"></i>
+        </button>
+        
+        <button
+          (click)="selection.toggleStrikethrough()"
+          class="w-7 h-7 rounded flex items-center justify-center transition-colors"
+          [class.bg-cyan-500]="selection.isStrikethrough()"
+          [class.text-white]="selection.isStrikethrough()"
+          [class]="!selection.isStrikethrough() ? (theme.isDark() ? 'hover:bg-zinc-700 text-zinc-400' : 'hover:bg-zinc-100 text-zinc-600') : ''"
+          title="Strikethrough (Cmd+Shift+S)">
+          <span class="line-through text-xs font-serif">S</span>
         </button>
 
-        <!-- Divider -->
-        <div class="w-px h-6 mx-1" [class]="theme.isDark() ? 'bg-zinc-700' : 'bg-zinc-200'"></div>
-
-        <!-- Code -->
         <button
-          type="button"
-          (click)="onCode()"
-          class="toolbar-btn"
-          [class.active]="selection.isCode()"
-          [class]="getButtonClasses(selection.isCode())"
-          title="인라인 코드">
-          <i class="pi pi-code text-sm"></i>
+          (click)="selection.toggleCode()"
+          class="w-7 h-7 rounded flex items-center justify-center transition-colors"
+          [class.bg-cyan-500]="selection.isCode()"
+          [class.text-white]="selection.isCode()"
+          [class]="!selection.isCode() ? (theme.isDark() ? 'hover:bg-zinc-700 text-zinc-400' : 'hover:bg-zinc-100 text-zinc-600') : ''"
+          title="Code (Cmd+E)">
+          <i class="pi pi-code text-xs"></i>
         </button>
+
+        <div class="w-px h-4 mx-1" [class]="theme.isDark() ? 'bg-zinc-700' : 'bg-zinc-200'"></div>
 
         <!-- Link -->
         <button
-          type="button"
           (click)="toggleLinkInput()"
-          class="toolbar-btn"
-          [class.active]="selection.linkUrl() || showLinkInput()"
-          [class]="getButtonClasses(!!selection.linkUrl() || showLinkInput())"
-          title="링크 (Ctrl+K)">
-          <i class="pi pi-link text-sm"></i>
+          class="w-7 h-7 rounded flex items-center justify-center transition-colors"
+          [class.bg-cyan-500]="!!selection.linkUrl()"
+          [class.text-white]="!!selection.linkUrl()"
+          [class]="!selection.linkUrl() ? (theme.isDark() ? 'hover:bg-zinc-700 text-zinc-400' : 'hover:bg-zinc-100 text-zinc-600') : ''"
+          title="Link (Cmd+K)">
+          <i class="pi pi-link text-xs"></i>
         </button>
 
-        <!-- Highlight -->
-        <div class="relative">
-          <button
-            type="button"
-            (click)="toggleHighlightPicker()"
-            class="toolbar-btn"
-            [class.active]="selection.highlightColor()"
-            [class]="getButtonClasses(!!selection.highlightColor())"
-            title="하이라이트">
-            <i class="pi pi-palette text-sm"></i>
-          </button>
-
-          <!-- Highlight Color Picker -->
-          @if (showHighlightPicker()) {
-            <div class="absolute top-full left-1/2 -translate-x-1/2 mt-2 p-2 rounded-lg shadow-xl border z-10"
-                 [class]="theme.isDark() ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-zinc-200'">
-              <div class="grid grid-cols-5 gap-1">
-                @for (color of highlightColors; track color.value) {
-                  <button
-                    type="button"
-                    (click)="onHighlight(color.value)"
-                    class="w-6 h-6 rounded transition-transform hover:scale-110"
-                    [style.background]="color.value"
-                    [title]="color.label">
-                    @if (selection.highlightColor() === color.value) {
-                      <i class="pi pi-check text-xs text-white drop-shadow"></i>
-                    }
-                  </button>
-                }
-                <!-- Remove highlight -->
-                <button
-                  type="button"
-                  (click)="onHighlight(null)"
-                  class="w-6 h-6 rounded border-2 border-dashed flex items-center justify-center transition-transform hover:scale-110"
-                  [class]="theme.isDark() ? 'border-zinc-600 text-zinc-500' : 'border-zinc-300 text-zinc-400'"
-                  title="하이라이트 제거">
-                  <i class="pi pi-times text-xs"></i>
-                </button>
-              </div>
-            </div>
-          }
-        </div>
-
-        <!-- Divider -->
-        <div class="w-px h-6 mx-1" [class]="theme.isDark() ? 'bg-zinc-700' : 'bg-zinc-200'"></div>
-
-        <!-- Clear Formatting -->
+        <!-- Color -->
         <button
-          type="button"
-          (click)="onClearFormatting()"
-          class="toolbar-btn"
-          [class]="getButtonClasses(false)"
-          title="서식 지우기">
-          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M3.27 5L2 6.27l6.97 6.97L6.5 19h3l1.57-3.66L16.73 21 18 19.73 3.27 5zM6 5v.18L8.82 8h2.4l-.72 1.68 2.1 2.1L14.21 8H20V5H6z"/>
-          </svg>
+          (click)="toggleColorPicker()"
+          class="w-7 h-7 rounded flex items-center justify-center transition-colors relative"
+          [class]="theme.isDark() ? 'hover:bg-zinc-700 text-zinc-400' : 'hover:bg-zinc-100 text-zinc-600'"
+          title="Text Color">
+          <span class="font-serif text-sm">A</span>
+          <div class="absolute bottom-1.5 right-1.5 w-1 h-1 rounded-full bg-red-500"></div>
         </button>
       </div>
 
-      <!-- Link Input -->
-      @if (showLinkInput()) {
-        <div
-          class="fixed z-50 p-2 rounded-lg shadow-xl border animate-fade-in"
-          [class]="theme.isDark() ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-zinc-200'"
-          [style.left.px]="position()!.x"
-          [style.top.px]="position()!.y - 96"
-          [style.transform]="'translateX(-50%)'">
-          <div class="flex items-center gap-2">
-            <input
-              #linkInput
-              type="text"
-              [(ngModel)]="linkUrl"
-              placeholder="https://example.com"
-              class="w-64 px-3 py-1.5 text-sm rounded border outline-none focus:ring-2 focus:ring-cyan-500/30"
-              [class]="theme.isDark()
-                ? 'bg-zinc-900 border-zinc-700 text-white'
-                : 'bg-white border-zinc-300 text-zinc-900'"
-              (keydown.enter)="onLinkSubmit()"
-              (keydown.escape)="showLinkInput.set(false)" />
-            <button
-              type="button"
-              (click)="onLinkSubmit()"
-              class="px-3 py-1.5 text-sm rounded bg-cyan-500 hover:bg-cyan-600 text-white cursor-pointer">
-              확인
-            </button>
-            @if (selection.linkUrl()) {
-              <button
-                type="button"
-                (click)="onRemoveLink()"
-                class="px-3 py-1.5 text-sm rounded cursor-pointer"
-                [class]="theme.isDark()
-                  ? 'bg-zinc-700 hover:bg-zinc-600 text-zinc-300'
-                  : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-700'">
-                삭제
-              </button>
-            }
-          </div>
+      <!-- Link Input Popup -->
+      @if (showLinkInput) {
+        <div 
+          class="fixed z-50 p-2 rounded-lg shadow-xl flex items-center gap-2"
+          [class]="theme.isDark() ? 'bg-zinc-800 border border-zinc-700' : 'bg-white border-zinc-200'"
+          [style.top.px]="top() + 45"
+          [style.left.px]="left()"
+          (click)="$event.stopPropagation()">
+          <input 
+            #linkInputRef
+            type="text" 
+            [(ngModel)]="linkUrl" 
+            placeholder="https://..." 
+            class="px-2 py-1 text-sm rounded border outline-none min-w-[200px]"
+            [class]="theme.isDark() ? 'bg-zinc-900 border-zinc-700 text-white placeholder-zinc-600' : 'bg-white border-zinc-300 text-zinc-900 placeholder-zinc-400'"
+            (keydown.enter)="applyLink()">
+          <button 
+            (click)="applyLink()"
+            class="px-2 py-1 bg-cyan-500 text-white text-xs rounded hover:bg-cyan-600">
+            Apply
+          </button>
+        </div>
+      }
+
+      <!-- Color Picker Popup -->
+      @if (showColorPicker) {
+        <div 
+          class="fixed z-50 p-3 rounded-lg shadow-xl grid grid-cols-5 gap-1 w-48"
+          [class]="theme.isDark() ? 'bg-zinc-800 border border-zinc-700' : 'bg-white border-zinc-200'"
+          [style.top.px]="top() + 45"
+          [style.left.px]="left()"
+          (click)="$event.stopPropagation()">
+          
+          <div class="col-span-5 text-xs font-medium mb-1 px-1" [class]="theme.isDark() ? 'text-zinc-500' : 'text-zinc-400'">Color</div>
+          @for (color of colors; track color.value) {
+             <button 
+               (click)="applyColor(color.value)"
+               class="w-8 h-8 rounded hover:bg-black/5 flex items-center justify-center text-sm font-medium"
+               [style.color]="color.value === 'default' ? 'inherit' : color.hex"
+               [title]="color.label">
+               A
+             </button>
+          }
+          
+          <div class="col-span-5 text-xs font-medium mb-1 mt-2 px-1" [class]="theme.isDark() ? 'text-zinc-500' : 'text-zinc-400'">Background</div>
+          @for (color of colors; track color.value) {
+             <button 
+               (click)="applyHighlight(color.hex)"
+               class="w-8 h-8 rounded flex items-center justify-center text-sm font-medium"
+               [style.backgroundColor]="color.value === 'default' ? 'transparent' : color.bgHex"
+               [title]="color.label">
+               A
+             </button>
+          }
         </div>
       }
     }
   `,
   styles: [`
-    .toolbar-btn {
-      @apply w-8 h-8 rounded flex items-center justify-center cursor-pointer transition-colors;
+    .formatting-toolbar {
+      animation: fadeIn 0.1s ease-out;
     }
-
-    @keyframes fade-in {
-      from {
-        opacity: 0;
-        transform: translateX(-50%) translateY(4px);
-      }
-      to {
-        opacity: 1;
-        transform: translateX(-50%) translateY(0);
-      }
-    }
-
-    .animate-fade-in {
-      animation: fade-in 0.15s ease-out;
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(5px); }
+      to { opacity: 1; transform: translateY(0); }
     }
   `]
 })
-export class FormattingToolbarComponent implements OnInit, OnDestroy {
+export class FormattingToolbarComponent {
   theme = inject(ThemeService);
   selection = inject(SelectionService);
-  private elementRef = inject(ElementRef);
-
-  @Input() set show(value: boolean) {
-    this.visible.set(value);
-  }
 
   @Output() formatApplied = new EventEmitter<void>();
-  @Output() close = new EventEmitter<void>();
+  @ViewChild('linkInputRef') linkInputRef?: ElementRef<HTMLInputElement>;
 
-  visible = signal(false);
-  position = signal<ToolbarPosition | null>(null);
-  showLinkInput = signal(false);
-  showHighlightPicker = signal(false);
+  // View state
+  showLinkInput = false;
+  showColorPicker = false;
   linkUrl = '';
 
-  highlightColors = [
-    { label: '노랑', value: 'rgba(255, 220, 73, 0.5)' },
-    { label: '주황', value: 'rgba(255, 163, 68, 0.5)' },
-    { label: '분홍', value: 'rgba(226, 85, 161, 0.5)' },
-    { label: '보라', value: 'rgba(154, 109, 215, 0.5)' },
-    { label: '파랑', value: 'rgba(82, 156, 202, 0.5)' },
-    { label: '녹색', value: 'rgba(77, 171, 154, 0.5)' },
-    { label: '빨강', value: 'rgba(255, 115, 105, 0.5)' },
-    { label: '회색', value: 'rgba(128, 128, 128, 0.3)' },
-    { label: '청록', value: 'rgba(6, 182, 212, 0.5)' },
+  // Colors for Notion-like palette
+  colors = [
+    { label: 'Default', value: 'default', hex: 'inherit', bgHex: 'transparent' },
+    { label: 'Gray', value: 'gray', hex: '#9B9A97', bgHex: '#EBECED' },
+    { label: 'Brown', value: 'brown', hex: '#64473A', bgHex: '#E9E5E3' },
+    { label: 'Orange', value: 'orange', hex: '#D9730D', bgHex: '#FAEBDD' },
+    { label: 'Yellow', value: 'yellow', hex: '#DFAB01', bgHex: '#FBF3DB' },
+    { label: 'Green', value: 'green', hex: '#0F7B6C', bgHex: '#DDEDEA' },
+    { label: 'Blue', value: 'blue', hex: '#0B6E99', bgHex: '#DDEBF1' },
+    { label: 'Purple', value: 'purple', hex: '#6940A5', bgHex: '#EAE4F2' },
+    { label: 'Pink', value: 'pink', hex: '#AD1A72', bgHex: '#F4DFEB' },
+    { label: 'Red', value: 'red', hex: '#E03E3E', bgHex: '#FBE4E4' },
   ];
 
-  private selectionCheckInterval: ReturnType<typeof setInterval> | null = null;
+  // Computed positions
+  top = computed(() => {
+    const rect = this.selection.state().rect;
+    if (!rect) return 0;
+    // Position above selection with some padding
+    return Math.max(10, rect.y - 45 + window.scrollY);
+  });
 
-  ngOnInit(): void {
-    // Check selection state periodically
-    this.selectionCheckInterval = setInterval(() => {
-      this.checkSelection();
-    }, 100);
-  }
+  left = computed(() => {
+    const rect = this.selection.state().rect;
+    if (!rect) return 0;
+    // Center horizontally
+    return Math.max(10, rect.x + (rect.width / 2) - 150 + window.scrollX);
+  });
 
-  ngOnDestroy(): void {
-    if (this.selectionCheckInterval) {
-      clearInterval(this.selectionCheckInterval);
-    }
-  }
-
-  @HostListener('document:mouseup')
-  onMouseUp(): void {
-    setTimeout(() => this.checkSelection(), 10);
-  }
-
-  @HostListener('document:keyup', ['$event'])
-  onKeyUp(event: KeyboardEvent): void {
-    // Handle keyboard shortcuts
-    if (event.ctrlKey || event.metaKey) {
-      if (event.key === 'b') {
-        this.onBold();
-      } else if (event.key === 'i') {
-        this.onItalic();
-      } else if (event.key === 'u') {
-        this.onUnderline();
-      } else if (event.key === 'k') {
-        event.preventDefault();
-        this.toggleLinkInput();
+  constructor() {
+    // Reset view state when selection changes
+    effect(() => {
+      if (!this.selection.state().hasSelection) {
+        this.showLinkInput = false;
+        this.showColorPicker = false;
       }
-    }
-
-    // Update selection state
-    setTimeout(() => this.checkSelection(), 10);
+    });
   }
 
-  @HostListener('document:click', ['$event'])
-  onDocumentClick(event: MouseEvent): void {
-    const target = event.target as HTMLElement;
+  toggleLinkInput() {
+    this.showLinkInput = !this.showLinkInput;
+    this.showColorPicker = false;
 
-    // Close highlight picker if clicking outside
-    if (this.showHighlightPicker() && !this.elementRef.nativeElement.contains(target)) {
-      this.showHighlightPicker.set(false);
-    }
-
-    // Close link input if clicking outside
-    if (this.showLinkInput() && !this.elementRef.nativeElement.contains(target)) {
-      this.showLinkInput.set(false);
-    }
-  }
-
-  private checkSelection(): void {
-    this.selection.updateSelectionState();
-
-    if (this.selection.hasSelection()) {
-      const rect = this.selection.selectionRect();
-      if (rect) {
-        this.position.set({
-          x: rect.x,
-          y: rect.y + window.scrollY,
-        });
-        this.visible.set(true);
-      }
-    } else {
-      this.visible.set(false);
-      this.showLinkInput.set(false);
-      this.showHighlightPicker.set(false);
-    }
-  }
-
-  getButtonClasses(isActive: boolean): string {
-    if (isActive) {
-      return 'bg-cyan-500/20 text-cyan-500';
-    }
-    return this.theme.isDark()
-      ? 'hover:bg-zinc-700 text-zinc-300'
-      : 'hover:bg-zinc-100 text-zinc-600';
-  }
-
-  onBold(): void {
-    this.selection.toggleBold();
-    this.formatApplied.emit();
-  }
-
-  onItalic(): void {
-    this.selection.toggleItalic();
-    this.formatApplied.emit();
-  }
-
-  onUnderline(): void {
-    this.selection.toggleUnderline();
-    this.formatApplied.emit();
-  }
-
-  onStrikethrough(): void {
-    this.selection.toggleStrikethrough();
-    this.formatApplied.emit();
-  }
-
-  onCode(): void {
-    this.selection.toggleCode();
-    this.formatApplied.emit();
-  }
-
-  toggleLinkInput(): void {
-    this.showHighlightPicker.set(false);
-    this.showLinkInput.set(!this.showLinkInput());
-    if (this.showLinkInput()) {
+    if (this.showLinkInput) {
       this.linkUrl = this.selection.linkUrl() || '';
+      // Focus input on next tick
+      setTimeout(() => this.linkInputRef?.nativeElement.focus());
     }
   }
 
-  onLinkSubmit(): void {
+  toggleColorPicker() {
+    this.showColorPicker = !this.showColorPicker;
+    this.showLinkInput = false;
+  }
+
+  applyLink() {
     this.selection.insertLink(this.linkUrl);
-    this.showLinkInput.set(false);
-    this.linkUrl = '';
+    this.showLinkInput = false;
     this.formatApplied.emit();
   }
 
-  onRemoveLink(): void {
-    this.selection.insertLink('');
-    this.showLinkInput.set(false);
-    this.linkUrl = '';
+  applyColor(color: string) {
+    // Note: SelectionService currently handles highlight, but not text color properly without more complex DOM manipulation
+    // For now we'll implement what SelectionService supports, or update SelectionService later
+    document.execCommand('foreColor', false, color === 'default' ? 'inherit' : this.getColorHex(color));
+    this.showColorPicker = false;
     this.formatApplied.emit();
   }
 
-  toggleHighlightPicker(): void {
-    this.showLinkInput.set(false);
-    this.showHighlightPicker.set(!this.showHighlightPicker());
-  }
-
-  onHighlight(color: string | null): void {
-    this.selection.setHighlight(color);
-    this.showHighlightPicker.set(false);
+  applyHighlight(color: string) {
+    this.selection.setHighlight(color === 'transparent' ? null : color);
+    this.showColorPicker = false;
     this.formatApplied.emit();
   }
 
-  onClearFormatting(): void {
-    this.selection.clearFormatting();
-    this.formatApplied.emit();
+  getColorHex(value: string): string {
+    return this.colors.find(c => c.value === value)?.hex || 'inherit';
+  }
+
+  onAiAction() {
+    // TODO: Emit AI action event
+    console.log('AI Action requested on selection:', this.selection.selectedText());
   }
 }

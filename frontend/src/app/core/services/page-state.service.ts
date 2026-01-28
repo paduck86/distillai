@@ -10,6 +10,7 @@
 import { Injectable, inject, signal, computed } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { ApiService, PageTreeNode, CreatePage, MovePage, SmartFolder, SourceType } from './api.service';
+import { ToastService } from './toast.service';
 
 // localStorage 키
 const EXPANDED_PAGES_KEY = 'distillai_expanded_pages';
@@ -27,6 +28,7 @@ export interface RecentView {
 })
 export class PageStateService {
   private api = inject(ApiService);
+  private toast = inject(ToastService);
 
   // ============================================
   // State
@@ -142,8 +144,17 @@ export class PageStateService {
       }
 
       return this.findPageById(this.pageTree(), response.data.id);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Failed to create page:', error);
+
+      // 사용자에게 에러 표시
+      const errorObj = error as { status?: number; error?: { message?: string } };
+      if (errorObj.status === 401) {
+        this.toast.error('로그인이 필요합니다', '페이지를 만들려면 먼저 로그인해주세요.');
+      } else {
+        const message = errorObj.error?.message || '알 수 없는 오류가 발생했습니다';
+        this.toast.error('페이지 생성 실패', message);
+      }
       return null;
     }
   }

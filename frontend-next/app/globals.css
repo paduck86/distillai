@@ -1,0 +1,284 @@
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+/* Theme definitions */
+
+@theme {
+  --font-display: var(--font-outfit), "Outfit", sans-serif;
+  --font-body: var(--font-inter), "Inter", sans-serif;
+  --font-mono: var(--font-jetbrains), "JetBrains Mono", monospace;
+
+  /* Primary colors - Notion blue */
+  --color-primary: #2383e2;
+  --color-primary-light: #529cca;
+  --color-primary-dark: #1a6cb7;
+
+  --color-accent: #0f7b6c;
+  --color-accent-light: #28a59a;
+  --color-accent-dark: #0a5a4f;
+
+  --color-success: #0f7b6c;
+  --color-warning: #cb912f;
+  --color-error: #e03e3e;
+  --color-info: #2383e2;
+}
+
+/* Light Mode (Default - Notion Style) */
+:root,
+.light {
+  --background: #ffffff;
+  --background-secondary: #f7f6f3;
+  --background-tertiary: #f1f1ef;
+  --background-hover: rgba(55, 53, 47, 0.08);
+  --background-active: rgba(55, 53, 47, 0.16);
+
+  --foreground: #37352f;
+  --foreground-secondary: #787774;
+  --foreground-tertiary: #9b9a97;
+
+  --border: #e3e2de;
+  --border-strong: #d3d1cb;
+
+  --sidebar-background: #f7f6f3;
+  --sidebar-hover: rgba(55, 53, 47, 0.08);
+  --sidebar-active: rgba(55, 53, 47, 0.12);
+  --sidebar-text: #37352f;
+  --sidebar-text-secondary: #787774;
+
+  --input-background: #ffffff;
+  --input-border: #e3e2de;
+  --input-placeholder: #9b9a97;
+
+  --card-background: #ffffff;
+  --card-border: #e3e2de;
+
+  /* Notion-style block highlights */
+  --block-bg-gray: rgba(128, 128, 128, 0.1);
+  --block-bg-brown: rgba(159, 107, 83, 0.15);
+  --block-bg-orange: rgba(255, 163, 68, 0.15);
+  --block-bg-yellow: rgba(255, 220, 73, 0.15);
+  --block-bg-green: rgba(77, 171, 154, 0.15);
+  --block-bg-blue: rgba(82, 156, 202, 0.15);
+  --block-bg-purple: rgba(154, 109, 215, 0.15);
+  --block-bg-pink: rgba(226, 85, 161, 0.15);
+  --block-bg-red: rgba(255, 115, 105, 0.15);
+
+  /* Notion-style typography */
+  --notion-font-body: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --notion-font-mono: 'JetBrains Mono', 'SF Mono', monospace;
+  --notion-page-padding: 96px;
+  --notion-block-spacing: 4px;
+  --notion-line-height: 1.6;
+}
+
+/* Dark Mode */
+.dark {
+  --background: #191919;
+  --background-secondary: #202020;
+  --background-tertiary: #2f2f2f;
+  --background-hover: rgba(255, 255, 255, 0.08);
+  --background-active: rgba(255, 255, 255, 0.12);
+
+  --foreground: #ebebeb;
+  --foreground-secondary: #9b9b9b;
+  --foreground-tertiary: #6b6b6b;
+
+  --border: #383838;
+  --border-strong: #4a4a4a;
+
+  --sidebar-background: #202020;
+  --sidebar-hover: rgba(255, 255, 255, 0.08);
+  --sidebar-active: rgba(255, 255, 255, 0.12);
+  --sidebar-text: #ebebeb;
+  --sidebar-text-secondary: #9b9b9b;
+
+  --input-background: #2f2f2f;
+  --input-border: #383838;
+  --input-placeholder: #6b6b6b;
+
+  --card-background: #202020;
+  --card-border: #383838;
+
+  /* Dark mode block highlights */
+  --block-bg-gray: rgba(128, 128, 128, 0.2);
+  --block-bg-brown: rgba(159, 107, 83, 0.2);
+  --block-bg-orange: rgba(255, 163, 68, 0.2);
+  --block-bg-yellow: rgba(255, 220, 73, 0.2);
+  --block-bg-green: rgba(77, 171, 154, 0.2);
+  --block-bg-blue: rgba(82, 156, 202, 0.2);
+  --block-bg-purple: rgba(154, 109, 215, 0.2);
+  --block-bg-pink: rgba(226, 85, 161, 0.2);
+  --block-bg-red: rgba(255, 115, 105, 0.2);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-body);
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+/* Custom Utilities */
+@layer components {
+  .btn-primary {
+    @apply px-4 py-2 rounded-lg font-medium transition-all duration-150;
+    background: var(--color-primary);
+    color: white;
+  }
+
+  .btn-primary:hover {
+    background: var(--color-primary-dark);
+  }
+
+  .btn-primary:focus {
+    @apply ring-2 ring-offset-2;
+    --tw-ring-color: var(--color-primary);
+  }
+
+  .btn-primary:disabled {
+    @apply opacity-50 cursor-not-allowed;
+  }
+
+  .btn-secondary {
+    @apply px-4 py-2 rounded-lg font-medium transition-all duration-150;
+    background: var(--background-tertiary);
+    color: var(--foreground);
+  }
+
+  .btn-secondary:hover {
+    background: var(--background-hover);
+  }
+
+  .input {
+    @apply rounded-lg px-3 py-2 transition-colors duration-150;
+    background: var(--input-background);
+    border: 1px solid var(--input-border);
+    color: var(--foreground);
+  }
+
+  .input::placeholder {
+    color: var(--input-placeholder);
+  }
+
+  .input:focus {
+    @apply outline-none ring-2;
+    --tw-ring-color: var(--color-primary);
+    border-color: var(--color-primary);
+  }
+
+  .bg-dot-pattern {
+    background-image: radial-gradient(circle, var(--foreground-tertiary) 1px, transparent 1px);
+    background-size: 30px 30px;
+    opacity: 0.3;
+  }
+}
+
+/* BlockNote theme overrides */
+.bn-container {
+  --bn-colors-editor-background: var(--background);
+  --bn-colors-editor-text: var(--foreground);
+  --bn-colors-menu-background: var(--card-background);
+  --bn-colors-menu-text: var(--foreground);
+  --bn-colors-tooltip-background: var(--background-tertiary);
+  --bn-colors-tooltip-text: var(--foreground);
+  --bn-colors-hovered-background: var(--background-hover);
+  --bn-colors-selected-background: var(--color-primary);
+  --bn-colors-border: var(--border);
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--border-strong);
+}
+
+/* Animation utilities */
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.animate-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Mobile touch improvements */
+@media (max-width: 768px) {
+  button {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .overflow-y-auto {
+    -webkit-overflow-scrolling: touch;
+  }
+
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+
+  /* BlockNote mobile adjustments */
+  .bn-editor {
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+  }
+
+  .bn-block-content {
+    padding: 3px 0 !important;
+  }
+
+  /* Reduce spacing on mobile */
+  h1 {
+    font-size: 1.75rem !important;
+  }
+
+  h2 {
+    font-size: 1.5rem !important;
+  }
+
+  h3 {
+    font-size: 1.25rem !important;
+  }
+}
+
+/* Safe area insets for notched devices */
+@supports (padding: max(0px)) {
+  .pb-safe {
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  }
+
+  .pt-safe {
+    padding-top: max(0.75rem, env(safe-area-inset-top));
+  }
+}

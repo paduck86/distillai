@@ -11,6 +11,7 @@ import { FormsModule } from '@angular/forms';
 import { ThemeService } from '../../../core/services/theme.service';
 import { AudioService } from '../../../core/services/audio.service';
 import { UploadService } from '../../../core/services/upload.service';
+import { SelectionService } from '../../../core/services/selection.service';
 import { Block, BlockType, BlockProperties } from '../../../core/services/api.service';
 import { BLOCK_COLORS, BlockColor } from '../../../core/types/block.types';
 import { ImageUploadComponent } from './image-upload.component';
@@ -28,18 +29,7 @@ import { TableEditorComponent } from './table-editor.component';
 
       <!-- Hover Actions (Left side) - Notion-style -->
       <div class="hover-actions flex items-center gap-0.5 w-14 -ml-6 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-        <!-- Plus Button (Add block with slash menu) -->
-        <button
-          #plusButton
-          (click)="onPlusButtonClick($event)"
-          class="w-6 h-6 rounded flex items-center justify-center cursor-pointer
-                 transition-colors duration-150"
-          [class]="theme.isDark()
-            ? 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-700'
-            : 'text-zinc-400 hover:text-zinc-600 hover:bg-zinc-200'"
-          title="블록 추가 (/)">
-          <i class="pi pi-plus text-xs"></i>
-        </button>
+
 
         <!-- Drag Handle (also opens menu on click) -->
         <button
@@ -597,7 +587,56 @@ import { TableEditorComponent } from './table-editor.component';
               (columnWidthsChange)="onTableColumnWidthsChange($event)" />
           }
 
-          <!-- Default Text -->
+          <!-- New Media Types (Placeholder Implementation) -->
+          @case ('video') {
+             <div class="p-4 rounded-lg bg-zinc-100 dark:bg-zinc-800 border dark:border-zinc-700 flex items-center gap-3">
+               <i class="pi pi-video text-xl opacity-50"></i>
+               <span class="opacity-50">동영상 블록 (준비 중)</span>
+             </div>
+          }
+          @case ('audio') {
+             <div class="p-4 rounded-lg bg-zinc-100 dark:bg-zinc-800 border dark:border-zinc-700 flex items-center gap-3">
+               <i class="pi pi-volume-up text-xl opacity-50"></i>
+               <span class="opacity-50">오디오 블록 (준비 중)</span>
+             </div>
+          }
+          @case ('file') {
+             <div class="p-4 rounded-lg bg-zinc-100 dark:bg-zinc-800 border dark:border-zinc-700 flex items-center gap-3">
+               <i class="pi pi-file text-xl opacity-50"></i>
+               <span class="opacity-50">파일 블록 (준비 중)</span>
+             </div>
+          }
+          @case ('bookmark') {
+             <div class="p-4 rounded-lg bg-zinc-100 dark:bg-zinc-800 border dark:border-zinc-700 flex items-center gap-3">
+               <i class="pi pi-bookmark text-xl opacity-50"></i>
+               <span class="opacity-50">웹 북마크 (준비 중)</span>
+             </div>
+          }
+          @case ('page') {
+             <div class="flex items-center gap-2 p-1 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded cursor-pointer transition-colors">
+               <i class="pi pi-file text-lg opacity-60"></i>
+               <span class="underline decoration-zinc-300 underline-offset-4">Untitled Page</span>
+             </div>
+          }
+
+          <!-- Default Text (Explicit) -->
+          @case ('text') {
+            <p
+              #contentBlock
+              contenteditable="true"
+              [attr.data-placeholder]="''"
+              [attr.data-block-id]="block.id"
+              (input)="onContentInput($event)"
+              (keydown)="onKeyDown($event)"
+              (focus)="onFocus()"
+              (blur)="onBlur($event)"
+              (paste)="onPaste($event)"
+              class="leading-relaxed min-h-6 outline-none empty:before:content-[attr(data-placeholder)] empty:before:text-zinc-400"
+              style="white-space: pre-wrap; word-break: break-word;">
+            </p>
+          }
+
+          <!-- Unknown / Default -->
           @default {
             <p
               #contentBlock
@@ -665,6 +704,7 @@ import { TableEditorComponent } from './table-editor.component';
 export class BlockRendererComponent implements AfterViewInit, OnChanges {
   theme = inject(ThemeService);
   private audioService = inject(AudioService);
+  private selection = inject(SelectionService);
 
   @Input() block!: Block;
   @Input() isEditing = false;
@@ -716,8 +756,12 @@ export class BlockRendererComponent implements AfterViewInit, OnChanges {
       const oldBlock = changes['block'].previousValue as Block | undefined;
 
       // Reset content if block id changed or block type changed
-      if (newBlock && (newBlock.id !== this.previousBlockId ||
-          (oldBlock && newBlock.type !== oldBlock.type))) {
+      // OR content changed while not focused (e.g. split operation from parent)
+      if (newBlock && (
+        newBlock.id !== this.previousBlockId ||
+        (oldBlock && newBlock.type !== oldBlock.type) ||
+        (!this.isFocused() && newBlock.content !== this.contentBlock?.nativeElement.textContent)
+      )) {
         // Use setTimeout to wait for the DOM to update with new element type
         setTimeout(() => this.setInitialContent(), 0);
       }
@@ -902,7 +946,7 @@ export class BlockRendererComponent implements AfterViewInit, OnChanges {
     // or when the content ends with '/' after a space or at start
     const trimmedContent = content.trim();
     if (trimmedContent === '/' ||
-        (content.endsWith('/') && (content.length === 1 || content[content.length - 2] === ' '))) {
+      (content.endsWith('/') && (content.length === 1 || content[content.length - 2] === ' '))) {
       const selection = window.getSelection();
       if (selection && selection.rangeCount > 0) {
         const range = selection.getRangeAt(0);
@@ -929,6 +973,38 @@ export class BlockRendererComponent implements AfterViewInit, OnChanges {
     const content = target.textContent || '';
     const selection = window.getSelection();
 
+    // Text Formatting Shortcuts (Cmd/Ctrl + Key)
+    if (event.metaKey || event.ctrlKey) {
+      switch (event.key.toLowerCase()) {
+        case 'b': // Bold
+          event.preventDefault();
+          this.selection.toggleBold();
+          return;
+        case 'i': // Italic
+          event.preventDefault();
+          this.selection.toggleItalic();
+          return;
+        case 'u': // Underline
+          event.preventDefault();
+          this.selection.toggleUnderline();
+          return;
+        case 'e': // Code (Cmd+E)
+          event.preventDefault();
+          this.selection.toggleCode();
+          return;
+
+        // Strikethrough (Cmd+Shift+X or Cmd+Shift+S)
+        case 'x':
+        case 's':
+          if (event.shiftKey) {
+            event.preventDefault();
+            this.selection.toggleStrikethrough();
+            return;
+          }
+          break;
+      }
+    }
+
     // Enter key - split block
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
@@ -942,6 +1018,17 @@ export class BlockRendererComponent implements AfterViewInit, OnChanges {
 
         const beforeContent = content.slice(0, caretOffset);
         const afterContent = content.slice(caretOffset);
+
+        // Manually update DOM to prevent duplication when focus changes
+        if (target.textContent !== beforeContent) {
+          target.textContent = beforeContent;
+        }
+
+        // If at the start of the block, stop propagation to prevent
+        // the SlashCommand menu (if open) from intercepting and duplicating actions
+        if (caretOffset === 0) {
+          event.stopPropagation();
+        }
 
         this.splitBlock.emit({
           id: this.block.id,

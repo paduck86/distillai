@@ -15,7 +15,7 @@ import { ThemeService } from '../../core/services/theme.service';
 import { AudioService } from '../../core/services/audio.service';
 import { FolderStateService } from '../../core/services/folder-state.service';
 import { PageStateService } from '../../core/services/page-state.service';
-import { markdownToBlocks } from '../../core/types/block.types';
+import { markdownToBlocks, generateBlockId } from '../../core/types/block.types';
 
 import { PageHeaderComponent } from './components/page-header.component';
 import { BlockRendererComponent } from './components/block-renderer.component';
@@ -124,30 +124,80 @@ import { SelectionService } from '../../core/services/selection.service';
         </div>
       }
 
-      <!-- Main Content -->
-      @if (distillation() && !loading()) {
+      <!-- Fixed Top Right: User Menu + Save Status -->
+      <div class="fixed top-4 right-4 z-50 flex items-center gap-3">
         <!-- Save Status Indicator -->
-        <div class="fixed top-4 right-4 z-40 flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs transition-all"
-             [class]="getSaveStatusClasses()">
-          @switch (saveStatus()) {
-            @case ('saving') {
-              <i class="pi pi-spinner pi-spin text-xs"></i>
-              <span>저장 중...</span>
+        @if (distillation() && !loading()) {
+          <div class="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs transition-all"
+               [class]="getSaveStatusClasses()">
+            @switch (saveStatus()) {
+              @case ('saving') {
+                <i class="pi pi-spinner pi-spin text-xs"></i>
+                <span>저장 중...</span>
+              }
+              @case ('saved') {
+                <i class="pi pi-check text-xs"></i>
+                <span>저장됨</span>
+              }
+              @case ('unsaved') {
+                <i class="pi pi-circle-fill text-xs text-amber-500"></i>
+                <span>수정됨</span>
+              }
+              @case ('error') {
+                <i class="pi pi-exclamation-triangle text-xs text-red-500"></i>
+                <span>저장 실패</span>
+              }
             }
-            @case ('saved') {
-              <i class="pi pi-check text-xs"></i>
-              <span>저장됨</span>
-            }
-            @case ('unsaved') {
-              <i class="pi pi-circle-fill text-xs text-amber-500"></i>
-              <span>수정됨</span>
-            }
-            @case ('error') {
-              <i class="pi pi-exclamation-triangle text-xs text-red-500"></i>
-              <span>저장 실패</span>
-            }
+          </div>
+        }
+
+        <!-- User Menu -->
+        <div class="relative">
+          <button
+            (click)="showUserMenu.set(!showUserMenu())"
+            class="w-9 h-9 rounded-lg flex items-center justify-center transition-colors cursor-pointer"
+            [class]="theme.isDark()
+              ? 'bg-zinc-800 hover:bg-zinc-700 border border-zinc-700'
+              : 'bg-white hover:bg-zinc-100 border border-zinc-200 shadow-sm'">
+            <div class="w-6 h-6 rounded-md bg-gradient-to-br from-cyan-500 to-cyan-600
+                        flex items-center justify-center text-white text-xs font-medium">
+              {{ userInitial() }}
+            </div>
+          </button>
+
+          @if (showUserMenu()) {
+            <div class="absolute right-0 top-full mt-2 w-48 rounded-xl shadow-xl overflow-hidden z-50 border"
+                 [class]="theme.isDark() ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-zinc-200'">
+              <div class="px-4 py-3 border-b"
+                   [class]="theme.isDark() ? 'border-zinc-700' : 'border-zinc-100'">
+                <p class="text-sm font-medium truncate">{{ userEmail() }}</p>
+              </div>
+              <button
+                (click)="goToDashboard()"
+                class="w-full px-4 py-2.5 text-left text-sm flex items-center gap-2 transition-colors cursor-pointer"
+                [class]="theme.isDark() ? 'hover:bg-zinc-800' : 'hover:bg-zinc-50'">
+                <i class="pi pi-home"></i>
+                <span>대시보드</span>
+              </button>
+              <button
+                (click)="signOut()"
+                class="w-full px-4 py-2.5 text-left text-sm flex items-center gap-2 transition-colors cursor-pointer"
+                [class]="theme.isDark() ? 'hover:bg-zinc-800' : 'hover:bg-zinc-50'">
+                <i class="pi pi-sign-out"></i>
+                <span>로그아웃</span>
+              </button>
+            </div>
           }
         </div>
+      </div>
+
+      <!-- User Menu Overlay (close on click outside) -->
+      @if (showUserMenu()) {
+        <div (click)="showUserMenu.set(false)" class="fixed inset-0 z-40"></div>
+      }
+
+      <!-- Main Content -->
+      @if (distillation() && !loading()) {
 
         <div class="page-content max-w-4xl mx-auto">
           <!-- Cover Image -->
@@ -222,22 +272,7 @@ import { SelectionService } from '../../core/services/selection.service';
                 (drop)="onBlockDrop($event, i)" />
             }
 
-            <!-- Add Block Button -->
-            <button
-              type="button"
-              class="add-block-row w-full flex items-center gap-2 py-3 px-2 -ml-2 mt-4 rounded-lg
-                     opacity-40 hover:opacity-100 transition-all cursor-pointer group text-left
-                     focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
-              [class]="theme.isDark() ? 'hover:bg-zinc-800/50' : 'hover:bg-zinc-50'"
-              (click)="showSlashCommand.set(true)">
-              <div class="w-8 h-8 flex items-center justify-center rounded-lg transition-colors
-                          group-hover:bg-cyan-500/10">
-                <i class="pi pi-plus text-sm group-hover:text-cyan-500"></i>
-              </div>
-              <span class="text-sm group-hover:text-cyan-500">
-                클릭하거나 / 를 입력하세요
-              </span>
-            </button>
+
           </div>
 
           <!-- Slash Command Palette -->
@@ -400,11 +435,15 @@ export class PageComponent implements OnInit, OnDestroy, AfterViewInit {
   private folderState = inject(FolderStateService);
   private pageState = inject(PageStateService);
   private recorder = inject(RecorderService);
+  private supabase = inject(SupabaseService);
   theme = inject(ThemeService);
   audioService = inject(AudioService);
 
   @ViewChild('audioPlayer') audioPlayerRef?: ElementRef<HTMLAudioElement>;
   @ViewChildren('blockRef') blockRefs!: QueryList<BlockRendererComponent>;
+
+  // User menu state
+  showUserMenu = signal(false);
 
   // State
   loading = signal(true);
@@ -529,14 +568,30 @@ export class PageComponent implements OnInit, OnDestroy, AfterViewInit {
             hasBlocks = true;
           } else if (response.data.summaryMd) {
             // Convert markdown to blocks for display
-            const convertedBlocks = markdownToBlocks(response.data.summaryMd);
+            const convertedBlocks = markdownToBlocks(response.data.summaryMd).map((b, i) => ({
+              ...b,
+              distillationId: id,
+              parentId: null,
+              properties: b.properties || {},
+              position: i,
+              createdAt: response.data!.createdAt,
+              updatedAt: response.data!.updatedAt
+            }));
             this.blocks.set(convertedBlocks as Block[]);
             hasBlocks = true;
           }
         } catch {
           // If blocks API fails, convert from markdown
           if (response.data.summaryMd) {
-            const convertedBlocks = markdownToBlocks(response.data.summaryMd);
+            const convertedBlocks = markdownToBlocks(response.data.summaryMd).map((b, i) => ({
+              ...b,
+              distillationId: id,
+              parentId: null,
+              properties: b.properties || {},
+              position: i,
+              createdAt: response.data!.createdAt,
+              updatedAt: response.data!.updatedAt
+            }));
             this.blocks.set(convertedBlocks as Block[]);
             hasBlocks = true;
           }
@@ -560,7 +615,7 @@ export class PageComponent implements OnInit, OnDestroy, AfterViewInit {
    */
   private createFirstBlockAndFocus(distillationId: string) {
     const newBlock: Block = {
-      id: `block_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      id: generateBlockId(),
       distillationId,
       parentId: null,
       type: 'text',
@@ -595,8 +650,24 @@ export class PageComponent implements OnInit, OnDestroy, AfterViewInit {
   onTitleChange(title: string) {
     const current = this.distillation();
     if (current) {
+      // Optimistic update
       this.distillation.set({ ...current, title });
-      this.api.updateLecture(current.id, { title }).subscribe();
+
+      // Update status
+      this.saveStatus.set('saving');
+
+      this.api.updateLecture(current.id, { title }).subscribe({
+        next: (response) => {
+          console.log('Title saved successfully:', response);
+          this.saveStatus.set('saved');
+          setTimeout(() => this.saveStatus.set('saved'), 2000); // Keep saved status for a bit
+        },
+        error: (err) => {
+          console.error('Failed to save title:', err);
+          this.saveStatus.set('error');
+          // Revert on error?
+        }
+      });
     }
   }
 
@@ -642,7 +713,7 @@ export class PageComponent implements OnInit, OnDestroy, AfterViewInit {
     const index = currentBlocks.findIndex(b => b.id === block.id);
     const newBlock: Block = {
       ...block,
-      id: `block_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      id: generateBlockId(),
       position: index + 1,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -688,7 +759,7 @@ export class PageComponent implements OnInit, OnDestroy, AfterViewInit {
     const currentBlocks = this.blocks();
     const index = currentBlocks.findIndex(b => b.id === afterBlockId);
     const newBlock: Block = {
-      id: `block_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      id: generateBlockId(),
       distillationId: this.distillation()!.id,
       parentId: null,
       type: 'text',
@@ -742,7 +813,7 @@ export class PageComponent implements OnInit, OnDestroy, AfterViewInit {
 
     // Create new block with content after cursor
     const newBlock: Block = {
-      id: `block_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      id: generateBlockId(),
       distillationId: this.distillation()!.id,
       parentId: null,
       type: 'text', // New block is always text
@@ -802,8 +873,18 @@ export class PageComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   // Handle slash command from within a block
+  // Handle slash command from within a block
   onSlashCommandFromBlock(event: { id: string; position: { x: number; y: number } }) {
-    this.slashCommandPosition.set(event.position);
+    // Check for bottom edge
+    const menuHeight = 280;
+    const windowHeight = window.innerHeight;
+    let y = event.position.y;
+
+    if (y + menuHeight > windowHeight - 20) {
+      y = y - menuHeight - 40;
+    }
+
+    this.slashCommandPosition.set({ x: event.position.x, y });
     this.showSlashCommand.set(true);
     this.editingBlockId.set(event.id);
     this.insertAfterBlockId.set(null); // Clear insert mode
@@ -811,7 +892,16 @@ export class PageComponent implements OnInit, OnDestroy, AfterViewInit {
 
   // Handle + button click - show slash menu to insert after this block
   onShowSlashMenuAfterBlock(event: { afterBlockId: string; position: { x: number; y: number } }) {
-    this.slashCommandPosition.set(event.position);
+    // Check for bottom edge
+    const menuHeight = 280;
+    const windowHeight = window.innerHeight;
+    let y = event.position.y;
+
+    if (y + menuHeight > windowHeight - 20) {
+      y = y - menuHeight - 40;
+    }
+
+    this.slashCommandPosition.set({ x: event.position.x, y });
     this.showSlashCommand.set(true);
     this.insertAfterBlockId.set(event.afterBlockId);
     this.editingBlockId.set(null); // Not editing existing block
@@ -892,6 +982,12 @@ export class PageComponent implements OnInit, OnDestroy, AfterViewInit {
     this.showSlashCommand.set(false);
 
     // Handle special actions
+    if (command.aiAction === 'summarize') {
+      this.clearSlashFromEditingBlock();
+      this.summarizePage();
+      return;
+    }
+
     if (command.aiAction === 'record') {
       // Clear slash from current block if any
       this.clearSlashFromEditingBlock();
@@ -953,7 +1049,7 @@ export class PageComponent implements OnInit, OnDestroy, AfterViewInit {
 
     // Create a new block
     const newBlock: Block = {
-      id: `block_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      id: generateBlockId(),
       distillationId: this.distillation()!.id,
       parentId: null,
       type: (command.blockType || 'text') as Block['type'],
@@ -1024,7 +1120,7 @@ export class PageComponent implements OnInit, OnDestroy, AfterViewInit {
   // Add first text block for empty pages
   addFirstBlock() {
     const newBlock: Block = {
-      id: `block_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      id: generateBlockId(),
       distillationId: this.distillation()!.id,
       parentId: null,
       type: 'text',
@@ -1082,6 +1178,84 @@ export class PageComponent implements OnInit, OnDestroy, AfterViewInit {
     }
   }
 
+  /**
+   * Summarize the current page content using AI
+   */
+  async summarizePage() {
+    const current = this.distillation();
+    if (!current) return;
+
+    this.saveStatus.set('saving');
+    try {
+      // First, ensure all current blocks are saved
+      await this.performAutoSave();
+
+      // Start AI summarization (this now supports block-based notes on the backend)
+      const response = await this.api.summarizeLecture(current.id).toPromise();
+
+      if (response?.data && response.data.summaryMd) {
+        // Convert summary markdown to blocks
+        const summaryBlocks = markdownToBlocks(response.data.summaryMd);
+
+        // Map blocks to include distillationId and valid positions
+        const currentBlocks = this.blocks();
+        const editingId = this.editingBlockId();
+        let insertIndex = currentBlocks.length;
+
+        if (editingId) {
+          const idx = currentBlocks.findIndex(b => b.id === editingId);
+          if (idx !== -1) insertIndex = idx + 1;
+        }
+
+        const headBlock: Block = {
+          id: generateBlockId(),
+          distillationId: current.id,
+          parentId: null,
+          type: 'heading3',
+          content: '✨ AI 요약 결과',
+          properties: { color: 'blue' },
+          position: insertIndex,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        };
+
+        const resultBlocks: Block[] = summaryBlocks.map((b, i) => ({
+          id: generateBlockId(),
+          distillationId: current.id,
+          parentId: null,
+          type: b.type as any,
+          content: b.content,
+          properties: b.properties || {},
+          position: insertIndex + 1 + i,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        }));
+
+        const finalBlocks = [
+          ...currentBlocks.slice(0, insertIndex),
+          headBlock,
+          ...resultBlocks,
+          ...currentBlocks.slice(insertIndex)
+        ];
+
+        // Re-calculate all positions to be safe
+        finalBlocks.forEach((b, i) => b.position = i);
+
+        this.blocks.set(finalBlocks);
+        this.saveStatus.set('saved');
+
+        // Save the new blocks structure
+        await this.performAutoSave();
+
+        // Scroll to the summary or focus it
+        this.editingBlockId.set(headBlock.id);
+      }
+    } catch (error) {
+      console.error('Summarization failed:', error);
+      this.saveStatus.set('error');
+    }
+  }
+
   async onSaveWithoutAI(result: RecordingResult) {
     const current = this.distillation();
     if (!current) return;
@@ -1105,7 +1279,7 @@ export class PageComponent implements OnInit, OnDestroy, AfterViewInit {
     // Add a timestamp block at current position
     const timeStr = this.formatTimestamp(timeMs);
     const newBlock: Block = {
-      id: `block_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      id: generateBlockId(),
       distillationId: this.distillation()!.id,
       parentId: null,
       type: 'timestamp',
@@ -1162,6 +1336,26 @@ export class PageComponent implements OnInit, OnDestroy, AfterViewInit {
   // Sidebar methods
   toggleSidebar() {
     this.sidebarCollapsed.set(!this.sidebarCollapsed());
+  }
+
+  // User menu methods
+  userEmail() {
+    return this.supabase.user()?.email || 'User';
+  }
+
+  userInitial() {
+    return this.userEmail().charAt(0).toUpperCase();
+  }
+
+  goToDashboard() {
+    this.showUserMenu.set(false);
+    this.router.navigate(['/dashboard']);
+  }
+
+  async signOut() {
+    this.showUserMenu.set(false);
+    await this.supabase.signOut();
+    this.router.navigate(['/auth']);
   }
 
   onSidebarPageSelected(pageId: string) {

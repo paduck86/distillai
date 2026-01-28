@@ -113,7 +113,7 @@ export type BlockType =
   | 'bullet' | 'numbered' | 'todo' | 'toggle'
   | 'quote' | 'callout' | 'divider' | 'code'
   | 'timestamp' | 'ai_summary' | 'embed'
-  | 'image' | 'table';
+  | 'image' | 'video' | 'audio' | 'file' | 'bookmark' | 'page' | 'table';
 
 export type BlockColor =
   | 'default' | 'gray' | 'brown' | 'orange' | 'yellow'

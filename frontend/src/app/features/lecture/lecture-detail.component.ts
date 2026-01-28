@@ -684,7 +684,7 @@ interface ActionItem {
                         @for (section of parsedSections(); track section.number; let i = $index) {
                           <!-- Section Card (Lilys Style) -->
                           <section class="summary-section-card mb-8 p-6 rounded-xl border transition-all"
-                                   [id]="'section-' + section.number.replace('.', '-')"
+                                   [id]="'section-' + section.number.replace('.', '-')">
                             <!-- Section Header -->
                             <div class="flex items-start gap-4 mb-5">
                               <div class="flex items-center gap-3 flex-1">

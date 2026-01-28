@@ -18,19 +18,15 @@ export const routes: Routes = [
     loadComponent: () => import('./features/dashboard/dashboard.component').then(m => m.DashboardComponent)
   },
   {
-    path: 'lecture/:id',
-    canActivate: [authGuard],
-    loadComponent: () => import('./features/lecture/lecture-detail.component').then(m => m.LectureDetailComponent)
-  },
-  {
-    path: 'record',
-    canActivate: [authGuard],
-    loadComponent: () => import('./features/lecture/record.component').then(m => m.RecordComponent)
-  },
-  {
     path: 'page',
     canActivate: [authGuard],
     loadChildren: () => import('./features/page/page.routes').then(m => m.PAGE_ROUTES)
+  },
+  // Legacy redirect
+  {
+    path: 'lecture/:id',
+    redirectTo: 'page/:id',
+    pathMatch: 'full'
   },
   {
     path: '**',

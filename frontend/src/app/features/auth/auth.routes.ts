@@ -2,20 +2,20 @@ import { Routes } from '@angular/router';
 
 export const authRoutes: Routes = [
   {
+    path: '',
+    loadComponent: () => import('./landing.component').then(m => m.LandingComponent),
+    pathMatch: 'full'
+  },
+  {
     path: 'login',
-    loadComponent: () => import('./login.component').then(m => m.LoginComponent)
+    loadComponent: () => import('./landing.component').then(m => m.LandingComponent)
   },
   {
     path: 'signup',
-    loadComponent: () => import('./signup.component').then(m => m.SignupComponent)
+    loadComponent: () => import('./landing.component').then(m => m.LandingComponent)
   },
   {
     path: 'callback',
     loadComponent: () => import('./callback.component').then(m => m.CallbackComponent)
-  },
-  {
-    path: '',
-    redirectTo: 'login',
-    pathMatch: 'full'
   }
 ];

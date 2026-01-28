@@ -149,12 +149,34 @@ export class LoginComponent {
 
     try {
       await this.supabase.signIn(this.email, this.password);
+
+      // Wait a moment for session to be established
+      await this.waitForAuth();
+
       this.router.navigate(['/dashboard']);
     } catch (err: any) {
       this.error.set(this.getErrorMessage(err));
     } finally {
       this.isLoading.set(false);
     }
+  }
+
+  private waitForAuth(): Promise<void> {
+    return new Promise((resolve) => {
+      // Give Supabase time to update the session
+      const checkAuth = setInterval(() => {
+        if (this.supabase.isAuthenticated()) {
+          clearInterval(checkAuth);
+          resolve();
+        }
+      }, 50);
+
+      // Timeout after 2 seconds
+      setTimeout(() => {
+        clearInterval(checkAuth);
+        resolve();
+      }, 2000);
+    });
   }
 
   async signInWithGoogle() {

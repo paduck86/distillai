@@ -198,6 +198,28 @@ export async function moveBlock(req: Request, res: Response, next: NextFunction)
 }
 
 /**
+ * PUT /blocks/batch/:distillationId
+ * 여러 블록 일괄 업데이트 (Auto-save)
+ */
+export async function updateBlocks(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const userId = req.user!.id;
+    const distillationId = req.params.distillationId;
+    const { blocks } = req.body;
+
+    if (!distillationId) {
+      throw new AppError(400, 'MISSING_PARAM', 'distillationId is required');
+    }
+
+    const updatedBlocks = await blockService.updateBlocksBatch(userId, distillationId, blocks);
+
+    res.json({ data: updatedBlocks });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
  * POST /blocks/migrate/:distillationId
  * 기존 Markdown을 블록으로 마이그레이션
  */

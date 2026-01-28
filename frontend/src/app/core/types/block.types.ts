@@ -5,6 +5,8 @@
  * Distillai 고유의 타임스탬프 및 AI 요약 블록 포함
  */
 
+// Distillai-specific blocks
+// Force Rebuild Triggered
 import { SourceType } from '../services/api.service';
 
 // ============================================
@@ -31,6 +33,11 @@ export type BlockType =
   | 'embed'       // 임베드 (YouTube, 링크)
   // Media blocks
   | 'image'       // 🖼️ 이미지 블록
+  | 'video'       // 🎥 동영상 블록
+  | 'audio'       // 🔊 오디오 블록
+  | 'file'        // 📁 파일 블록
+  | 'bookmark'    // 🔖 웹 북마크
+  | 'page'        // 📄 하위 페이지
   | 'table';      // 📊 테이블 블록
 
 // ============================================
@@ -198,37 +205,37 @@ export interface SlashCommand {
 }
 
 export const SLASH_COMMANDS: SlashCommand[] = [
-  // Basic blocks
-  { id: 'text', label: '텍스트', labelEn: 'Text', description: '일반 텍스트 블록', descriptionEn: 'Plain text block', icon: 'pi-align-left', category: 'basic', blockType: 'text' },
-  { id: 'h1', label: '제목 1', labelEn: 'Heading 1', description: '큰 제목', descriptionEn: 'Large heading', icon: 'pi-hashtag', category: 'basic', blockType: 'heading1' },
-  { id: 'h2', label: '제목 2', labelEn: 'Heading 2', description: '중간 제목', descriptionEn: 'Medium heading', icon: 'pi-hashtag', category: 'basic', blockType: 'heading2' },
-  { id: 'h3', label: '제목 3', labelEn: 'Heading 3', description: '작은 제목', descriptionEn: 'Small heading', icon: 'pi-hashtag', category: 'basic', blockType: 'heading3' },
-  { id: 'bullet', label: '글머리 기호', labelEn: 'Bullet list', description: '불릿 리스트', descriptionEn: 'Bulleted list item', icon: 'pi-list', category: 'basic', blockType: 'bullet' },
-  { id: 'number', label: '번호 매기기', labelEn: 'Numbered list', description: '번호 리스트', descriptionEn: 'Numbered list item', icon: 'pi-sort-numeric-up', category: 'basic', blockType: 'numbered' },
-  { id: 'todo', label: '할 일', labelEn: 'To-do', description: '체크박스', descriptionEn: 'Checkbox item', icon: 'pi-check-square', category: 'basic', blockType: 'todo' },
-  { id: 'toggle', label: '토글', labelEn: 'Toggle', description: '접기/펼치기', descriptionEn: 'Collapsible block', icon: 'pi-caret-right', category: 'basic', blockType: 'toggle' },
-  { id: 'quote', label: '인용', labelEn: 'Quote', description: '인용문', descriptionEn: 'Quote block', icon: 'pi-bookmark', category: 'basic', blockType: 'quote' },
-  { id: 'callout', label: '콜아웃', labelEn: 'Callout', description: '강조 박스', descriptionEn: 'Highlighted callout', icon: 'pi-info-circle', category: 'basic', blockType: 'callout' },
-  { id: 'divider', label: '구분선', labelEn: 'Divider', description: '수평선', descriptionEn: 'Horizontal divider', icon: 'pi-minus', category: 'basic', blockType: 'divider' },
-  { id: 'code', label: '코드', labelEn: 'Code', description: '코드 블록', descriptionEn: 'Code block', icon: 'pi-code', category: 'basic', blockType: 'code' },
+  // --- AI Section (Top) ---
+  { id: 'ask', label: 'AI에게 질문', labelEn: 'Ask AI', description: 'Agent D가 답변해드립니다', descriptionEn: 'Ask Agent D', icon: 'pi-sparkles', category: 'ai', aiAction: 'ask' },
+  { id: 'summarize', label: '요약', labelEn: 'Summarize', description: '이 페이지 내용 요약', descriptionEn: 'Summarize page content', icon: 'pi-bolt', category: 'ai', aiAction: 'summarize' },
+  { id: 'translate', label: '번역', labelEn: 'Translate', description: '다른 언어로 번역', descriptionEn: 'Translate content', icon: 'pi-language', category: 'ai', aiAction: 'translate' },
+  { id: 'explain', label: '설명', labelEn: 'Explain', description: '쉽게 설명해달라고 요청', descriptionEn: 'Ask for explanation', icon: 'pi-question-circle', category: 'ai', aiAction: 'explain' },
 
-  // AI Commands (Distillai-specific)
-  { id: 'summarize', label: 'AI 요약', labelEn: 'AI Summary', description: '페이지 전체를 AI로 요약', descriptionEn: 'Summarize the entire page with AI', icon: 'pi-sparkles', category: 'ai', aiAction: 'summarize' },
-  { id: 'ask', label: 'Agent D', labelEn: 'Agent D', description: 'AI에게 질문하기', descriptionEn: 'Ask AI a question', icon: 'pi-comments', category: 'ai', aiAction: 'ask' },
-  { id: 'quiz', label: '퀴즈 생성', labelEn: 'Generate Quiz', description: '학습 퀴즈 만들기', descriptionEn: 'Create learning quiz', icon: 'pi-question-circle', category: 'ai', aiAction: 'quiz' },
-  { id: 'expand', label: '확장 설명', labelEn: 'Expand', description: '선택한 내용 상세 설명', descriptionEn: 'Expand on selected content', icon: 'pi-arrows-alt', category: 'ai', aiAction: 'expand' },
-  { id: 'translate', label: '번역', labelEn: 'Translate', description: '다른 언어로 번역', descriptionEn: 'Translate to another language', icon: 'pi-globe', category: 'ai', aiAction: 'translate' },
+  // --- Basic Blocks ---
+  { id: 'text', label: '텍스트', labelEn: 'Text', description: '일반 텍스트', descriptionEn: 'Plain text', icon: 'pi-align-left', category: 'basic', blockType: 'text' },
+  { id: 'page', label: '페이지', labelEn: 'Page', description: '하위 페이지 생성', descriptionEn: 'Embed a sub-page', icon: 'pi-file', category: 'basic', blockType: 'page' },
+  { id: 'h1', label: '제목 1', labelEn: 'Heading 1', description: '대제목', descriptionEn: 'Big section heading', icon: 'pi-hashtag', category: 'basic', blockType: 'heading1', shortcut: '/h1' },
+  { id: 'h2', label: '제목 2', labelEn: 'Heading 2', description: '중제목', descriptionEn: 'Medium section heading', icon: 'pi-hashtag', category: 'basic', blockType: 'heading2', shortcut: '/h2' },
+  { id: 'h3', label: '제목 3', labelEn: 'Heading 3', description: '소제목', descriptionEn: 'Small section heading', icon: 'pi-hashtag', category: 'basic', blockType: 'heading3', shortcut: '/h3' },
+  { id: 'table', label: '표', labelEn: 'Table', description: '간단한 표', descriptionEn: 'Simple table', icon: 'pi-table', category: 'basic', blockType: 'table' },
+  { id: 'bullet', label: '글머리 기호 목록', labelEn: 'Bulleted list', description: '간단한 목록', descriptionEn: 'Simple bulleted list', icon: 'pi-list', category: 'basic', blockType: 'bullet' },
+  { id: 'number', label: '번호 매기기 목록', labelEn: 'Numbered list', description: '순서가 있는 목록', descriptionEn: 'Numbered list', icon: 'pi-sort-numeric-up', category: 'basic', blockType: 'numbered' },
+  { id: 'toggle', label: '토글 목록', labelEn: 'Toggle list', description: '접고 펼칠 수 있는 목록', descriptionEn: 'Toggles inside blocks', icon: 'pi-caret-right', category: 'basic', blockType: 'toggle' },
+  { id: 'quote', label: '인용', labelEn: 'Quote', description: '인용구 캡처', descriptionEn: 'Capture a quote', icon: 'pi-bookmark', category: 'basic', blockType: 'quote' },
+  { id: 'divider', label: '구분선', labelEn: 'Divider', description: '블록 시각적 분리', descriptionEn: 'Visually divide blocks', icon: 'pi-minus', category: 'basic', blockType: 'divider' },
+  { id: 'callout', label: '콜아웃', labelEn: 'Callout', description: '글 강조', descriptionEn: 'Make writing stand out', icon: 'pi-info-circle', category: 'basic', blockType: 'callout' },
 
-  // Media
-  { id: 'timestamp', label: '타임스탬프', labelEn: 'Timestamp', description: '오디오 위치 마커', descriptionEn: 'Audio position marker', icon: 'pi-clock', category: 'media', blockType: 'timestamp' },
-  { id: 'embed', label: '임베드', labelEn: 'Embed', description: 'YouTube, 링크 등 임베드', descriptionEn: 'Embed YouTube, links, etc.', icon: 'pi-external-link', category: 'media', blockType: 'embed' },
-  { id: 'image', label: '이미지', labelEn: 'Image', description: '이미지 업로드 또는 URL 임베드', descriptionEn: 'Upload image or embed from URL', icon: 'pi-image', category: 'media', blockType: 'image' },
-  { id: 'table', label: '표', labelEn: 'Table', description: '간단한 표 만들기', descriptionEn: 'Create a simple table', icon: 'pi-table', category: 'basic', blockType: 'table' },
-  { id: 'record', label: '녹음 시작', labelEn: 'Start Recording', description: '이 페이지에 오디오 녹음 추가', descriptionEn: 'Add audio recording to this page', icon: 'pi-microphone', category: 'media', aiAction: 'record' },
+  // --- Media ---
+  { id: 'image', label: '이미지', labelEn: 'Image', description: '이미지 업로드 또는 임베드', descriptionEn: 'Upload or embed image', icon: 'pi-image', category: 'media', blockType: 'image' },
+  { id: 'video', label: '동영상', labelEn: 'Video', description: '동영상 업로드 또는 임베드', descriptionEn: 'Upload or embed video', icon: 'pi-video', category: 'media', blockType: 'video' },
+  { id: 'audio', label: '오디오', labelEn: 'Audio', description: '오디오 업로드 또는 임베드', descriptionEn: 'Upload or embed audio', icon: 'pi-volume-up', category: 'media', blockType: 'audio' },
+  { id: 'code', label: '코드', labelEn: 'Code', description: '코드 스니펫 캡처', descriptionEn: 'Capture a code snippet', icon: 'pi-code', category: 'media', blockType: 'code' },
+  { id: 'file', label: '파일', labelEn: 'File', description: '파일 업로드 또는 임베드', descriptionEn: 'Upload or embed file', icon: 'pi-file', category: 'media', blockType: 'file' },
+  { id: 'bookmark', label: '웹 북마크', labelEn: 'Web bookmark', description: '링크 미리보기 저장', descriptionEn: 'Save a bookmark to a website', icon: 'pi-bookmark', category: 'media', blockType: 'bookmark' },
 
-  // Advanced
-  { id: 'import', label: '가져오기', labelEn: 'Import', description: '외부 콘텐츠 가져오기', descriptionEn: 'Import external content', icon: 'pi-download', category: 'advanced', aiAction: 'import' },
-  { id: 'subpage', label: '하위 페이지', labelEn: 'Sub-page', description: '현재 페이지 아래에 새 페이지 생성', descriptionEn: 'Create new page under current page', icon: 'pi-file-plus', category: 'advanced', aiAction: 'subpage' },
+  // --- Database (Placeholder for visual completeness) ---
+  { id: 'database_inline', label: '데이터베이스 (인라인)', labelEn: 'Database - Inline', description: '페이지 내 데이터베이스', descriptionEn: 'Database in page', icon: 'pi-server', category: 'advanced', blockType: 'table' },
+  { id: 'database_full', label: '데이터베이스 (전체 페이지)', labelEn: 'Database - Full page', description: '전체 페이지 데이터베이스', descriptionEn: 'Full page database', icon: 'pi-calendar', category: 'advanced', blockType: 'table' },
 ];
 
 // ============================================
@@ -378,8 +385,17 @@ function createBlock(type: BlockType, content: string, properties?: BlockPropert
   };
 }
 
-function generateBlockId(): string {
-  return `block_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+export function generateBlockId(): string {
+  // Use crypto.randomUUID if available (modern browsers)
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  // Fallback for older environments or testing
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+    const r = Math.random() * 16 | 0;
+    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
 }
 
 // ============================================

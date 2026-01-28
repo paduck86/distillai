@@ -8,6 +8,7 @@ import * as youtubeService from '../services/youtube.service.js';
 import * as pdfService from '../services/pdf.service.js';
 import * as xService from '../services/x.service.js';
 import type { CreateLecture, UpdateLecture, CreatePage, MovePage } from '../types/index.js';
+import * as blockService from '../services/block.service.js';
 import { ValidationError, AppError } from '../middleware/error.middleware.js';
 
 // ============================================
@@ -518,18 +519,25 @@ export async function summarizeLecture(req: Request, res: Response, next: NextFu
         );
       }
     } else {
-      // 일반 오디오/비디오 파일인 경우
-      if (!lecture.audioPath) {
-        throw new ValidationError('No audio file uploaded');
+      // 일반 오디오/비디오 파일인 경우 또는 블록 기반 노트
+      if (lecture.audioPath) {
+        console.log(`Processing audio/video file: ${lecture.audioPath}`);
+        // Get audio URL
+        const audioUrl = await storageService.getSignedUrl(lecture.audioPath);
+        // Process with Gemini (요약 + AI 카테고리 추출)
+        result = await aiService.summarizeWithCategoryExtraction(audioUrl, lecture.title, language);
+      } else {
+        // 블록 데이터에서 텍스트 추출하여 요약
+        console.log(`Processing block content for distillation: ${id}`);
+        const blocksText = await blockService.getBlocksText(userId, id);
+
+        if (!blocksText || blocksText.trim().length < 10) {
+          throw new ValidationError('요약할 내용이 없습니다. 내용을 먼저 입력해주세요.');
+        }
+
+        // 텍스트 기반 요약 수행
+        result = await aiService.summarizeFromTranscriptWithCategory(blocksText, lecture.title, language);
       }
-
-      console.log(`Processing audio/video file: ${lecture.audioPath}`);
-
-      // Get audio URL
-      const audioUrl = await storageService.getSignedUrl(lecture.audioPath);
-
-      // Process with Gemini (요약 + AI 카테고리 추출)
-      result = await aiService.summarizeWithCategoryExtraction(audioUrl, lecture.title, language);
     }
 
     // AI 카테고리 slug로 카테고리 ID 조회

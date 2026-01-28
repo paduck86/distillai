@@ -50,6 +50,30 @@ export async function getBlocks(
 }
 
 /**
+ * 특정 Distillation의 모든 블록 텍스트 추출 (요약용)
+ */
+export async function getBlocksText(
+  userId: string,
+  distillationId: string
+): Promise<string> {
+  const blocks = await getBlocks(userId, distillationId);
+  return flattenBlocksText(blocks);
+}
+
+function flattenBlocksText(blocks: Block[]): string {
+  let text = '';
+  for (const block of blocks) {
+    if (block.content) {
+      text += block.content + '\n';
+    }
+    if (block.children && block.children.length > 0) {
+      text += flattenBlocksText(block.children);
+    }
+  }
+  return text;
+}
+
+/**
  * 단일 블록 조회
  */
 export async function getBlock(
@@ -289,6 +313,96 @@ export async function reorderBlocks(
       [i, blockIds[i], distillationId]
     );
   }
+}
+
+/**
+ * 여러 블록 일괄 업데이트 (Auto-save)
+ */
+export async function updateBlocksBatch(
+  userId: string,
+  distillationId: string,
+  blocks: Block[]
+): Promise<Block[]> {
+  // 소유권 확인
+  const ownerCheck = await queryOne<{ id: string }>(
+    `SELECT id FROM distillai.distillations WHERE id = $1 AND user_id = $2`,
+    [distillationId, userId]
+  );
+
+  if (!ownerCheck) {
+    throw new NotFoundError('Distillation');
+  }
+
+  // 1. 현재 DB에 있는 블록 ID들 가져오기
+  const currentBlockRows = await query<{ id: string }>(
+    `SELECT id FROM distillai.blocks WHERE distillation_id = $1`,
+    [distillationId]
+  );
+  const currentIds = new Set(currentBlockRows.map(r => r.id));
+
+  // 2. 입력된 블록들 업데이트 또는 생성 (Upsert)
+  const inputIds = new Set(blocks.map(b => b.id));
+  const updatedBlocks: Block[] = [];
+
+  for (const block of blocks) {
+    if (currentIds.has(block.id)) {
+      // 업데이트
+      const row = await queryOne<BlockRow>(
+        `UPDATE distillai.blocks
+         SET type = $1, content = $2, properties = $3, position = $4, parent_id = $5, updated_at = NOW()
+         WHERE id = $6 AND distillation_id = $7
+         RETURNING *`,
+        [
+          block.type,
+          block.content,
+          block.properties || {},
+          block.position,
+          block.parentId || null,
+          block.id,
+          distillationId
+        ]
+      );
+      if (row) updatedBlocks.push(mapBlockRow(row));
+    } else {
+      // 생성
+      const row = await queryOne<BlockRow>(
+        `INSERT INTO distillai.blocks (id, distillation_id, parent_id, type, content, properties, position)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         RETURNING *`,
+        [
+          block.id,
+          distillationId,
+          block.parentId || null,
+          block.type,
+          block.content,
+          block.properties || {},
+          block.position
+        ]
+      );
+      if (row) updatedBlocks.push(mapBlockRow(row));
+    }
+  }
+
+  // 3. 입력에 없는 블록들은 삭제
+  for (const id of currentIds) {
+    if (!inputIds.has(id)) {
+      await query(
+        `DELETE FROM distillai.blocks WHERE id = $1 AND distillation_id = $2`,
+        [id, distillationId]
+      );
+    }
+  }
+
+  // 트리 구조로 변환하여 반환
+  // updatedBlocks에는 자식 블록들이 포함되어 있지 않을 수 있으므로 DB에서 다시 조회
+  const finalRows = await query<BlockRow>(
+    `SELECT * FROM distillai.blocks
+     WHERE distillation_id = $1
+     ORDER BY position ASC`,
+    [distillationId]
+  );
+
+  return buildBlockTree(finalRows.map(mapBlockRow));
 }
 
 /**

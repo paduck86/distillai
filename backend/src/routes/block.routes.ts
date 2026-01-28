@@ -46,6 +46,9 @@ router.put('/:blockId/move', blockController.moveBlock);
 // PUT /blocks/reorder/:distillationId - 순서 재정렬
 router.put('/reorder/:distillationId', blockController.reorderBlocks);
 
+// PUT /blocks/batch/:distillationId - 여러 블록 일괄 업데이트
+router.put('/batch/:distillationId', blockController.updateBlocks);
+
 // ============================================
 // 블록 삭제
 // ============================================
