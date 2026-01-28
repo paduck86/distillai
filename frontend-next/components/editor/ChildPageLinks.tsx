@@ -2,16 +2,16 @@
 
 import { usePageStore } from "@/store/usePageStore";
 import { PageTreeNode } from "@/lib/types";
-import { FileText, Folder, File, ChevronRight } from "lucide-react";
-import Link from "next/link";
-import { cn } from "@/lib/utils";
+import { FileText } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 interface ChildPageLinksProps {
     pageId: string;
 }
 
 export default function ChildPageLinks({ pageId }: ChildPageLinksProps) {
-    const { pageTree } = usePageStore();
+    const { pageTree, selectPage } = usePageStore();
+    const router = useRouter();
 
     // Recursive helper to find node
     const findNode = (nodes: PageTreeNode[], id: string): PageTreeNode | null => {
@@ -31,13 +31,18 @@ export default function ChildPageLinks({ pageId }: ChildPageLinksProps) {
         return null;
     }
 
+    const handleClick = (childId: string) => {
+        selectPage(childId);
+        router.push(`/page/${childId}`);
+    };
+
     return (
-        <div className="flex flex-col gap-1 mb-6 px-4 md:px-12 max-w-4xl mx-auto">
+        <div className="flex flex-col gap-1 mt-2">
             {currentNode.children.map((child) => (
-                <Link
+                <button
                     key={child.id}
-                    href={`/page/${child.id}`}
-                    className="flex items-center gap-2 p-2 rounded transition-colors group"
+                    onClick={() => handleClick(child.id)}
+                    className="flex items-center gap-2 p-2 rounded transition-colors text-left"
                     style={{ color: "var(--foreground-secondary)" }}
                     onMouseEnter={(e) => {
                         e.currentTarget.style.backgroundColor = "var(--background-hover)";
@@ -48,14 +53,14 @@ export default function ChildPageLinks({ pageId }: ChildPageLinksProps) {
                         e.currentTarget.style.color = "var(--foreground-secondary)";
                     }}
                 >
-                    <FileText className="w-4 h-4" style={{ color: "var(--foreground-tertiary)" }} />
+                    <FileText className="w-4 h-4 flex-shrink-0" style={{ color: "var(--foreground-tertiary)" }} />
                     <span
                         className="pb-0.5"
                         style={{ borderBottom: "1px solid var(--border)" }}
                     >
                         {child.title || "Untitled"}
                     </span>
-                </Link>
+                </button>
             ))}
         </div>
     );

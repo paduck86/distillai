@@ -79,6 +79,12 @@ export const api = {
             api.post<any>("/pages/reorder", { pageIds, parentId }),
         summarize: (id: string, language: string = "korean") =>
             api.post<any>(`/pages/${id}/summarize`, { language }),
+        // Trash
+        getTrash: () => api.get<any[]>("/pages/trash"),
+        moveToTrash: (id: string) => api.put<any>(`/pages/${id}/trash`),
+        restore: (id: string) => api.put<any>(`/pages/${id}/restore`),
+        deletePermanently: (id: string) => api.delete(`/pages/${id}/permanent`),
+        emptyTrash: () => api.delete("/pages/trash/empty"),
     },
     blocks: {
         get: (pageId: string) => api.get<any[]>(`/blocks/${pageId}`),

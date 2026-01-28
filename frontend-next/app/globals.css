@@ -69,6 +69,9 @@
   --notion-page-padding: 96px;
   --notion-block-spacing: 4px;
   --notion-line-height: 1.6;
+
+  /* Drag and drop */
+  --color-primary-alpha: rgba(35, 131, 226, 0.15);
 }
 
 /* Dark Mode */
@@ -109,6 +112,9 @@
   --block-bg-purple: rgba(154, 109, 215, 0.2);
   --block-bg-pink: rgba(226, 85, 161, 0.2);
   --block-bg-red: rgba(255, 115, 105, 0.2);
+
+  /* Drag and drop */
+  --color-primary-alpha: rgba(35, 131, 226, 0.25);
 }
 
 body {
@@ -184,6 +190,70 @@ body {
   --bn-colors-hovered-background: var(--background-hover);
   --bn-colors-selected-background: var(--color-primary);
   --bn-colors-border: var(--border);
+  min-height: auto !important;
+  height: auto !important;
+  overflow: visible !important;
+}
+
+.bn-editor {
+  min-height: auto !important;
+  height: auto !important;
+  overflow: visible !important;
+}
+
+/* Ensure BlockNote side menu is visible */
+.bn-side-menu {
+  z-index: 10 !important;
+}
+
+/* Remove any default height from BlockNote internal elements */
+.bn-editor > div,
+.bn-block-group {
+  min-height: auto !important;
+  height: auto !important;
+  overflow: visible !important;
+}
+
+/* BlockNote inline formatting styles */
+.bn-editor strong,
+.bn-editor b {
+  font-weight: 700;
+}
+
+.bn-editor em,
+.bn-editor i {
+  font-style: italic;
+}
+
+.bn-editor u {
+  text-decoration: underline;
+}
+
+.bn-editor s {
+  text-decoration: line-through;
+}
+
+.bn-editor code {
+  background: var(--background-tertiary);
+  padding: 0.15em 0.4em;
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+  color: var(--color-error);
+}
+
+/* BlockNote link underline style */
+.bn-editor a {
+  color: var(--foreground);
+  text-decoration: none;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 1px;
+  transition: border-color 0.15s ease;
+  cursor: pointer;
+}
+
+.bn-editor a:hover {
+  border-color: var(--foreground-secondary);
 }
 
 /* Custom scrollbar */

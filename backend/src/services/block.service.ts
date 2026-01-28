@@ -340,47 +340,34 @@ export async function updateBlocksBatch(
   );
   const currentIds = new Set(currentBlockRows.map(r => r.id));
 
-  // 2. 입력된 블록들 업데이트 또는 생성 (Upsert)
+  // 2. 입력된 블록들 업데이트 또는 생성 (Upsert with ON CONFLICT)
   const inputIds = new Set(blocks.map(b => b.id));
   const updatedBlocks: Block[] = [];
 
   for (const block of blocks) {
-    if (currentIds.has(block.id)) {
-      // 업데이트
-      const row = await queryOne<BlockRow>(
-        `UPDATE distillai.blocks
-         SET type = $1, content = $2, properties = $3, position = $4, parent_id = $5, updated_at = NOW()
-         WHERE id = $6 AND distillation_id = $7
-         RETURNING *`,
-        [
-          block.type,
-          block.content,
-          block.properties || {},
-          block.position,
-          block.parentId || null,
-          block.id,
-          distillationId
-        ]
-      );
-      if (row) updatedBlocks.push(mapBlockRow(row));
-    } else {
-      // 생성
-      const row = await queryOne<BlockRow>(
-        `INSERT INTO distillai.blocks (id, distillation_id, parent_id, type, content, properties, position)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)
-         RETURNING *`,
-        [
-          block.id,
-          distillationId,
-          block.parentId || null,
-          block.type,
-          block.content,
-          block.properties || {},
-          block.position
-        ]
-      );
-      if (row) updatedBlocks.push(mapBlockRow(row));
-    }
+    // Use UPSERT to handle race conditions - avoids duplicate key errors
+    const row = await queryOne<BlockRow>(
+      `INSERT INTO distillai.blocks (id, distillation_id, parent_id, type, content, properties, position)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       ON CONFLICT (id) DO UPDATE SET
+         type = EXCLUDED.type,
+         content = EXCLUDED.content,
+         properties = EXCLUDED.properties,
+         position = EXCLUDED.position,
+         parent_id = EXCLUDED.parent_id,
+         updated_at = NOW()
+       RETURNING *`,
+      [
+        block.id,
+        distillationId,
+        block.parentId || null,
+        block.type,
+        block.content,
+        block.properties || {},
+        block.position
+      ]
+    );
+    if (row) updatedBlocks.push(mapBlockRow(row));
   }
 
   // 3. 입력에 없는 블록들은 삭제

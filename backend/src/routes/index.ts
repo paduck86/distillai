@@ -7,6 +7,11 @@ import pageRoutes from './page.routes.js';
 import chatRoutes from './chat.routes.js';
 import categoryRoutes from './category.routes.js';
 import blockRoutes from './block.routes.js';
+import audioRoutes from './audio.routes.js';
+import youtubeRoutes from './youtube.routes.js';
+import pdfRoutes from './pdf.routes.js';
+import imageRoutes from './image.routes.js';
+import urlRoutes from './url.routes.js';
 
 const router = Router();
 
@@ -30,5 +35,10 @@ router.use('/pages', authMiddleware, pageRoutes);
 router.use('/chat', authMiddleware, chatRoutes);
 router.use('/categories', authMiddleware, categoryRoutes);
 router.use('/blocks', blockRoutes);  // auth middleware is inside
+router.use('/audio', audioRoutes);   // auth middleware is inside
+router.use('/youtube', youtubeRoutes);  // auth middleware is inside
+router.use('/pdf', pdfRoutes);          // auth middleware is inside
+router.use('/image', imageRoutes);      // auth middleware is inside
+router.use('/url', urlRoutes);          // auth middleware is inside
 
 export { router as routes };

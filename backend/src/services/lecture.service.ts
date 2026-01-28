@@ -546,6 +546,18 @@ export async function getPageTree(userId: string): Promise<PageTreeNode[]> {
     }
   }
 
+  // Sort children by position recursively
+  const sortChildren = (nodes: PageTreeNode[]) => {
+    nodes.sort((a, b) => a.position - b.position);
+    for (const node of nodes) {
+      if (node.children.length > 0) {
+        sortChildren(node.children);
+      }
+    }
+  };
+
+  sortChildren(roots);
+
   return roots;
 }
 
@@ -691,8 +703,98 @@ export async function reorderPages(
   pageIds: string[],
   parentId: string | null
 ): Promise<void> {
+  // 각 페이지의 position을 순서대로 업데이트
+  for (let i = 0; i < pageIds.length; i++) {
+    await query(
+      `UPDATE distillai.distillations
+       SET position = $1, parent_id = $2, updated_at = NOW()
+       WHERE id = $3 AND user_id = $4`,
+      [i, parentId, pageIds[i], userId]
+    );
+  }
+}
+
+// ============================================
+// Trash Functions
+// ============================================
+
+interface TrashedPage {
+  id: string;
+  title: string;
+  trashedAt: string;
+  sourceType?: string;
+}
+
+/**
+ * 휴지통 페이지 목록 조회
+ */
+export async function getTrashPages(userId: string): Promise<TrashedPage[]> {
+  const rows = await query<{
+    id: string;
+    title: string;
+    trashed_at: string;
+    source_type: string | null;
+  }>(
+    `SELECT id, title, trashed_at, source_type
+     FROM distillai.distillations
+     WHERE user_id = $1 AND trashed_at IS NOT NULL
+     ORDER BY trashed_at DESC`,
+    [userId]
+  );
+
+  return rows.map(row => ({
+    id: row.id,
+    title: row.title,
+    trashedAt: row.trashed_at,
+    sourceType: row.source_type ?? undefined,
+  }));
+}
+
+/**
+ * 페이지를 휴지통으로 이동
+ */
+export async function moveToTrash(userId: string, pageId: string): Promise<void> {
+  // First verify ownership
+  await getDistillation(userId, pageId);
+
   await query(
-    `SELECT distillai.reorder_pages($1, $2, $3)`,
-    [userId, pageIds, parentId]
+    `UPDATE distillai.distillations
+     SET trashed_at = NOW(), updated_at = NOW()
+     WHERE id = $1 AND user_id = $2`,
+    [pageId, userId]
+  );
+}
+
+/**
+ * 휴지통에서 페이지 복원
+ */
+export async function restoreFromTrash(userId: string, pageId: string): Promise<void> {
+  await query(
+    `UPDATE distillai.distillations
+     SET trashed_at = NULL, updated_at = NOW()
+     WHERE id = $1 AND user_id = $2 AND trashed_at IS NOT NULL`,
+    [pageId, userId]
+  );
+}
+
+/**
+ * 페이지 영구 삭제
+ */
+export async function deletePermanently(userId: string, pageId: string): Promise<void> {
+  await query(
+    `DELETE FROM distillai.distillations
+     WHERE id = $1 AND user_id = $2 AND trashed_at IS NOT NULL`,
+    [pageId, userId]
+  );
+}
+
+/**
+ * 휴지통 비우기
+ */
+export async function emptyTrash(userId: string): Promise<void> {
+  await query(
+    `DELETE FROM distillai.distillations
+     WHERE user_id = $1 AND trashed_at IS NOT NULL`,
+    [userId]
   );
 }

@@ -11,8 +11,8 @@ import crypto from 'crypto';
 const genAI = env.GEMINI_API_KEY ? new GoogleGenerativeAI(env.GEMINI_API_KEY) : null;
 const fileManager = env.GEMINI_API_KEY ? new GoogleAIFileManager(env.GEMINI_API_KEY) : null;
 
-const SUMMARIZE_MODEL = 'gemini-pro';  // 요약용 (안정적)
-const CHAT_MODEL = 'gemini-pro';       // 채팅용 (빠름)
+const SUMMARIZE_MODEL = 'gemini-3-flash-preview';  // 요약용 (멀티모달 지원)
+const CHAT_MODEL = 'gemini-3-flash-preview';       // 채팅용 (빠름)
 
 // 20MB 이상이면 File API 사용 (inlineData 제한)
 const INLINE_DATA_LIMIT = 20 * 1024 * 1024;
@@ -39,21 +39,17 @@ async function uploadLargeAudioFile(
   try {
     // 임시 파일에 저장
     await fs.writeFile(tempPath, Buffer.from(audioBuffer));
-    console.log(`Saved temp file: ${tempPath} (${(audioBuffer.byteLength / 1024 / 1024).toFixed(2)}MB)`);
 
     // File API로 업로드
-    console.log('Uploading to Gemini File API...');
     const uploadResult = await fileManager.uploadFile(tempPath, {
       mimeType,
       displayName: `audio_${tempId}`,
     });
 
-    console.log(`Upload started: ${uploadResult.file.name}, state: ${uploadResult.file.state}`);
 
     // 파일 처리 완료 대기 (ACTIVE 상태가 될 때까지)
     let file = uploadResult.file;
     while (file.state === 'PROCESSING') {
-      console.log('Waiting for file processing...');
       await new Promise(resolve => setTimeout(resolve, 5000)); // 5초 대기
       file = await fileManager.getFile(file.name);
     }
@@ -62,7 +58,6 @@ async function uploadLargeAudioFile(
       throw new Error('File processing failed');
     }
 
-    console.log(`File ready: ${file.uri}`);
     return { uri: file.uri, name: file.name };
   } finally {
     // 임시 파일 정리
@@ -77,7 +72,6 @@ async function deleteUploadedFile(fileName: string): Promise<void> {
   if (!fileManager) return;
   try {
     await fileManager.deleteFile(fileName);
-    console.log(`Deleted uploaded file: ${fileName}`);
   } catch (error) {
     console.warn(`Failed to delete file ${fileName}:`, error);
   }
@@ -109,7 +103,6 @@ export async function summarizeLecture(
     const mimeType = getMimeTypeFromUrl(audioUrl);
     const fileSizeMB = audioBuffer.byteLength / 1024 / 1024;
 
-    console.log(`Audio file size: ${fileSizeMB.toFixed(2)}MB, MIME: ${mimeType}, Language: ${language}`);
 
     const langInstruction = language === 'ko'
       ? '모든 응답을 한국어로 작성해주세요.'
@@ -170,8 +163,18 @@ ${langInstruction}
 
 ### 완전한 출력 예시 (반드시 이 형식을 따르세요)
 
-[인트로]
-닷넷(C#) 환경에서 데이터베이스 모델링부터 API 엔드포인트 구축까지의 전 과정을 상세히 배웁니다. 레파지토리 패턴과 비즈니스 레이어를 활용하여 데이터 접근과 비즈니스 로직을 분리하고, DI(의존성 주입) 시스템을 통해 효율적으로 코드를 관리하는 실무 노하우를 익힐 수 있습니다. 반복적인 작업을 자동화하고 데이터 무결성을 유지하는 트랜잭션 처리 방식까지 익혀 견고한 백엔드 시스템을 구축하는 데 필요한 실질적인 지식을 얻게 될 것입니다.
+## 전체 요약
+닷넷(C#) 환경에서 데이터베이스 모델링부터 API 엔드포인트 구축까지의 전 과정을 다룹니다. 레파지토리 패턴으로 데이터 접근을 분리하고, 서비스 레이어에서 비즈니스 로직을 처리하며, DI 시스템으로 의존성을 관리하는 방법을 배웁니다.
+
+## 목차
+- 1. 레파지토리 레이어 구축
+  - 1.1 DI 컨테이너 등록
+  - 1.2 레파지토리 사용 패턴
+- 2. 서비스 레이어 구축
+  - 2.1 서비스 인터페이스 정의
+  - 2.2 서비스 구현 클래스
+
+---
 
 1. 레파지토리 레이어 구축
 레파지토리 레이어는 데이터베이스와의 직접적인 상호작용을 담당하는 계층이다. 비즈니스 로직과 데이터 접근 로직을 분리하여 코드의 유지보수성을 높이기 위함이다.
@@ -263,8 +266,18 @@ ${langInstruction}
 
 ### Complete Output Example (You MUST follow this format)
 
-[Intro]
-You will learn the complete process from database modeling to building API endpoints in a .NET (C#) environment. By utilizing the repository pattern and business layer, you'll master the practical know-how of separating data access and business logic, and efficiently managing code through the DI (Dependency Injection) system. You'll also learn transaction handling methods that automate repetitive tasks and maintain data integrity, gaining the practical knowledge needed to build robust backend systems.
+## Summary
+This covers the complete process from database modeling to building API endpoints in a .NET (C#) environment. Learn how to separate data access using the repository pattern, handle business logic in the service layer, and manage dependencies with the DI system.
+
+## Table of Contents
+- 1. Building the Repository Layer
+  - 1.1 DI Container Registration
+  - 1.2 Repository Usage Pattern
+- 2. Building the Service Layer
+  - 2.1 Defining Service Interface
+  - 2.2 Service Implementation Class
+
+---
 
 1. Building the Repository Layer
 The repository layer is responsible for direct interaction with the database. This separation is designed to increase code maintainability by isolating business logic from data access logic.
@@ -308,7 +321,6 @@ Do not use timestamps ([00:00:00] format). Use numbers only (1, 1.1, 2...).`;
     // 파일 크기에 따라 처리 방식 선택
     if (audioBuffer.byteLength > INLINE_DATA_LIMIT) {
       // 대용량: File API 사용 (3시간+ 강의 지원)
-      console.log('Using File API for large audio file...');
       const uploadedFile = await uploadLargeAudioFile(audioBuffer, mimeType);
       uploadedFileName = uploadedFile.name;
 
@@ -323,7 +335,6 @@ Do not use timestamps ([00:00:00] format). Use numbers only (1, 1.1, 2...).`;
       ]);
     } else {
       // 소용량: inlineData 사용 (빠름)
-      console.log('Using inline data for small audio file...');
       const base64Audio = Buffer.from(audioBuffer).toString('base64');
 
       result = await model.generateContent([
@@ -615,7 +626,6 @@ export async function transcribeAudioBuffer(
     // Uint8Array를 ArrayBuffer로 변환
     const audioBuffer = Buffer.from(buffer).buffer as ArrayBuffer;
 
-    console.log(`Transcribing audio buffer: ${(buffer.length / 1024 / 1024).toFixed(2)}MB`);
 
     const prompt = `이 오디오를 듣고 내용을 있는 그대로 전사해주세요.
 자연스러운 한국어로 작성하되, 말하는 사람의 의도를 최대한 살려주세요.
@@ -626,7 +636,6 @@ export async function transcribeAudioBuffer(
 
     if (buffer.length > INLINE_DATA_LIMIT) {
       // 대용량: File API 사용
-      console.log('Using File API for large audio buffer...');
       const uploadedFile = await uploadLargeAudioFile(audioBuffer, mimeType);
       uploadedFileName = uploadedFile.name;
 
@@ -641,7 +650,6 @@ export async function transcribeAudioBuffer(
       ]);
     } else {
       // 소용량: inlineData 사용
-      console.log('Using inline data for small audio buffer...');
       const base64Audio = Buffer.from(audioBuffer).toString('base64');
 
       result = await model.generateContent([
@@ -656,7 +664,6 @@ export async function transcribeAudioBuffer(
     }
 
     const transcript = result.response.text().trim();
-    console.log(`Transcription complete. Length: ${transcript.length}`);
     return transcript;
   } catch (error) {
     console.error('Gemini transcription error:', error);
@@ -687,7 +694,6 @@ export async function summarizeFromTranscript(
   try {
     const model = genAI.getGenerativeModel({ model: SUMMARIZE_MODEL });
 
-    console.log(`Generating summary from transcript with Gemini... Language: ${language}`);
 
     // 임시 제목인지 확인 (끝이 ...로 끝나면 임시 제목)
     const needsTitleExtraction = title.endsWith('...');
@@ -765,8 +771,18 @@ ${titlePromptKo}
 
 ### 완전한 출력 예시 (반드시 이 형식을 따르세요)
 
-[인트로]
-닷넷(C#) 환경에서 데이터베이스 모델링부터 API 엔드포인트 구축까지의 전 과정을 상세히 배웁니다. 레파지토리 패턴과 비즈니스 레이어를 활용하여 데이터 접근과 비즈니스 로직을 분리하고, DI(의존성 주입) 시스템을 통해 효율적으로 코드를 관리하는 실무 노하우를 익힐 수 있습니다. 반복적인 작업을 자동화하고 데이터 무결성을 유지하는 트랜잭션 처리 방식까지 익혀 견고한 백엔드 시스템을 구축하는 데 필요한 실질적인 지식을 얻게 될 것입니다.
+## 전체 요약
+닷넷(C#) 환경에서 데이터베이스 모델링부터 API 엔드포인트 구축까지의 전 과정을 다룹니다. 레파지토리 패턴으로 데이터 접근을 분리하고, 서비스 레이어에서 비즈니스 로직을 처리하며, DI 시스템으로 의존성을 관리하는 방법을 배웁니다.
+
+## 목차
+- 1. 레파지토리 레이어 구축
+  - 1.1 DI 컨테이너 등록
+  - 1.2 레파지토리 사용 패턴
+- 2. 서비스 레이어 구축
+  - 2.1 서비스 인터페이스 정의
+  - 2.2 서비스 구현 클래스
+
+---
 
 1. 레파지토리 레이어 구축
 레파지토리 레이어는 데이터베이스와의 직접적인 상호작용을 담당하는 계층이다. 비즈니스 로직과 데이터 접근 로직을 분리하여 코드의 유지보수성을 높이기 위함이다.
@@ -856,8 +872,18 @@ Analyze this lecture and write a detailed Lilys-style summary in **English**.
 
 ### Complete Output Example (You MUST follow this format)
 
-[Intro]
-You will learn the complete process from database modeling to building API endpoints in a .NET (C#) environment. By utilizing the repository pattern and business layer, you'll master the practical know-how of separating data access and business logic, and efficiently managing code through the DI (Dependency Injection) system. You'll also learn transaction handling methods that automate repetitive tasks and maintain data integrity, gaining the practical knowledge needed to build robust backend systems.
+## Summary
+This covers the complete process from database modeling to building API endpoints in a .NET (C#) environment. Learn how to separate data access using the repository pattern, handle business logic in the service layer, and manage dependencies with the DI system.
+
+## Table of Contents
+- 1. Building the Repository Layer
+  - 1.1 DI Container Registration
+  - 1.2 Repository Usage Pattern
+- 2. Building the Service Layer
+  - 2.1 Defining Service Interface
+  - 2.2 Service Implementation Class
+
+---
 
 1. Building the Repository Layer
 The repository layer is responsible for direct interaction with the database. This separation is designed to increase code maintainability by isolating business logic from data access logic.
@@ -901,7 +927,6 @@ Write the summary in English.`;
         suggestedTitle = titleMatch[1].trim();
         // 제목 라인 제거
         responseText = responseText.replace(/^SUGGESTED_TITLE:\s*.+\n*/m, '').trim();
-        console.log(`Extracted suggested title: ${suggestedTitle}`);
       }
     }
 
@@ -909,7 +934,6 @@ Write the summary in English.`;
     const summary = suggestedTitle
       ? `# ${suggestedTitle}\n\n${responseText}`
       : responseText;
-    console.log(`Summary complete. Length: ${summary.length}`);
 
     return {
       transcript,
@@ -946,4 +970,71 @@ export async function summarizeFromTranscriptWithCategory(
     ...result,
     aiCategory,
   };
+}
+
+/**
+ * 페이지 콘텐츠를 간단하게 요약 (블록 기반 노트용)
+ * - 브라우저 언어 설정에 따라 응답
+ * - 간결한 2-3문장 요약
+ */
+export async function summarizePageContentSimple(
+  content: string,
+  title: string,
+  language: SupportedLanguage = 'ko'
+): Promise<{ summary: string }> {
+  if (!genAI) {
+    throw new AppError(500, 'GEMINI_NOT_CONFIGURED', 'Gemini API is not configured');
+  }
+
+  try {
+    const model = genAI.getGenerativeModel({ model: SUMMARIZE_MODEL });
+
+
+    const prompt = language === 'ko'
+      ? `다음 내용을 구조화된 형태로 요약해주세요.
+
+제목: "${title}"
+
+내용:
+${content}
+
+---
+응답 형식:
+1. 주요 주제별로 번호(1️⃣, 2️⃣ 등)와 함께 섹션을 나눠서 정리
+2. 각 섹션 내에서 핵심 포인트는 bullet(•, ✔️, ❌, 👉 등)으로 계층 구조화
+3. 중요한 내용은 「따옴표」나 【괄호】로 강조 (마크다운 **bold** 사용 금지)
+4. 화자 이름이 있으면 누가 말했는지 표시 (예: 🗣️ 홍길동: "발언 내용")
+5. 마지막에 "한 줄 결론" 또는 핵심 요약 한 문장 추가
+6. 존댓말 사용 (~입니다, ~했습니다, ~됩니다)
+7. 내용이 짧으면 섹션 없이 bullet point로만 정리해도 됨
+
+머릿말이나 "요약입니다" 같은 설명 없이 바로 요약 내용만 출력하세요.`
+      : `Summarize the following content in a structured, easy-to-scan format.
+
+Title: "${title}"
+
+Content:
+${content}
+
+---
+Response format:
+1. Organize by main topics with numbered sections (1️⃣, 2️⃣, etc.)
+2. Use bullets (•, ✔️, ❌, 👉) for hierarchical points within sections
+3. Emphasize key points with「quotes」or【brackets】(do NOT use markdown **bold**)
+4. If speaker names are present, attribute quotes (e.g., 🗣️ John: "quote")
+5. End with a one-line conclusion or key takeaway
+6. Use formal, polite language
+7. For short content, just use bullet points without sections
+
+Output only the summary without any preamble like "Here's a summary".`;
+
+    const result = await model.generateContent(prompt);
+    const response = result.response;
+    const summary = response.text().trim();
+
+    return { summary };
+  } catch (error) {
+    console.error('Simple page summarization failed:', error);
+    throw new AppError(500, 'SUMMARIZE_FAILED', 'Failed to summarize page content');
+  }
 }

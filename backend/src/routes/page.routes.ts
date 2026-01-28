@@ -124,6 +124,12 @@ const listQuerySchema = z.object({
 router.get('/tree', pageController.getPageTree);
 router.post('/reorder', validate(reorderPagesSchema), pageController.reorderPagesHandler);
 
+// ============================================
+// Trash Routes (must be before /:id routes)
+// ============================================
+router.get('/trash', pageController.getTrashPages);
+router.delete('/trash/empty', pageController.emptyTrash);
+
 // Routes
 router.get('/', validateQuery(listQuerySchema), pageController.getLectures);
 router.get('/uncategorized', pageController.getUncategorizedLectures);
@@ -162,5 +168,10 @@ router.post('/:id/summarize', pageController.summarizeLecture);
 router.put('/:id/confirm-category', validate(confirmCategorySchema), pageController.confirmCategory);
 router.put('/:id/move', validate(movePageSchema), pageController.movePageHandler);
 router.put('/:id/collapse', pageController.toggleCollapseHandler);
+
+// Trash operations for specific page
+router.put('/:id/trash', pageController.moveToTrash);
+router.put('/:id/restore', pageController.restoreFromTrash);
+router.delete('/:id/permanent', pageController.deletePermanently);
 
 export default router;

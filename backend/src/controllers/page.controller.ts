@@ -527,16 +527,20 @@ export async function summarizeLecture(req: Request, res: Response, next: NextFu
         // Process with Gemini (요약 + AI 카테고리 추출)
         result = await aiService.summarizeWithCategoryExtraction(audioUrl, lecture.title, language);
       } else {
-        // 블록 데이터에서 텍스트 추출하여 요약
-        console.log(`Processing block content for distillation: ${id}`);
+        // 블록 데이터에서 텍스트 추출하여 간단 요약
+        console.log(`Processing block content for simple summary: ${id}`);
         const blocksText = await blockService.getBlocksText(userId, id);
 
         if (!blocksText || blocksText.trim().length < 10) {
           throw new ValidationError('요약할 내용이 없습니다. 내용을 먼저 입력해주세요.');
         }
 
-        // 텍스트 기반 요약 수행
-        result = await aiService.summarizeFromTranscriptWithCategory(blocksText, lecture.title, language);
+        // 간단한 요약 수행 (2-3문장)
+        const simpleResult = await aiService.summarizePageContentSimple(blocksText, lecture.title, language);
+        result = {
+          summary: simpleResult.summary,
+          transcript: blocksText,
+        };
       }
     }
 
@@ -859,6 +863,92 @@ export async function reorderPagesHandler(req: Request, res: Response, next: Nex
     await lectureService.reorderPages(userId, pageIds, parentId ?? null);
 
     res.json({ success: true });
+  } catch (error) {
+    next(error);
+  }
+}
+
+// ============================================
+// Trash Operations
+// ============================================
+
+/**
+ * GET /api/pages/trash
+ * 휴지통 페이지 목록 조회
+ */
+export async function getTrashPages(req: Request, res: Response, next: NextFunction) {
+  try {
+    const userId = req.user!.id;
+    const pages = await lectureService.getTrashPages(userId);
+
+    res.json({ data: pages });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * PUT /api/pages/:id/trash
+ * 페이지를 휴지통으로 이동
+ */
+export async function moveToTrash(req: Request, res: Response, next: NextFunction) {
+  try {
+    const userId = req.user!.id;
+    const pageId = req.params.id!;
+
+    await lectureService.moveToTrash(userId, pageId);
+
+    res.json({ success: true });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * PUT /api/pages/:id/restore
+ * 휴지통에서 페이지 복원
+ */
+export async function restoreFromTrash(req: Request, res: Response, next: NextFunction) {
+  try {
+    const userId = req.user!.id;
+    const pageId = req.params.id!;
+
+    await lectureService.restoreFromTrash(userId, pageId);
+
+    res.json({ success: true });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * DELETE /api/pages/:id/permanent
+ * 페이지 영구 삭제
+ */
+export async function deletePermanently(req: Request, res: Response, next: NextFunction) {
+  try {
+    const userId = req.user!.id;
+    const pageId = req.params.id!;
+
+    await lectureService.deletePermanently(userId, pageId);
+
+    res.status(204).send();
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * DELETE /api/pages/trash/empty
+ * 휴지통 비우기
+ */
+export async function emptyTrash(req: Request, res: Response, next: NextFunction) {
+  try {
+    const userId = req.user!.id;
+
+    await lectureService.emptyTrash(userId);
+
+    res.status(204).send();
   } catch (error) {
     next(error);
   }
