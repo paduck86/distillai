@@ -5,11 +5,10 @@ import OpenAI from "openai";
 
 export const maxDuration = 120;
 
-const openaiClient = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
-
 export async function POST(req: NextRequest) {
+  const openaiClient = new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY,
+  });
   try {
     const formData = await req.formData();
     const audioFile = formData.get('audio') as File;
