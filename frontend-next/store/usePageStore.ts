@@ -63,7 +63,6 @@ export const usePageStore = create<PageState>()(
                 set({ isLoading: true });
                 try {
                     const { data } = await api.pages.getTree();
-                    console.log("[loadPageTree] Received data:", JSON.stringify(data, null, 2));
                     set({ pageTree: data });
                 } catch (error) {
                     console.error("Failed to load page tree:", error);
