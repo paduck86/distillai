@@ -44,7 +44,7 @@ export function SmartPageList({ type }: SmartPageListProps) {
 
     return (
         <div className="flex flex-col">
-            {itemsInfo.map((item) => {
+            {itemsInfo.map((item, idx) => {
                 const pageNode = allPages.find(p => p.id === item.id);
 
                 // If page not found (e.g. deleted but still in recents/favorites), skip or show placeholder.
@@ -52,7 +52,7 @@ export function SmartPageList({ type }: SmartPageListProps) {
                 if (!pageNode) return null;
 
                 return (
-                    <PageTreeItem key={item.id} page={pageNode} depth={0} />
+                    <PageTreeItem key={item.id} page={pageNode} depth={0} index={idx} parentId={null} />
                 );
             })}
         </div>
