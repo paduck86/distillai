@@ -1038,3 +1038,129 @@ Output only the summary without any preamble like "Here's a summary".`;
     throw new AppError(500, 'SUMMARIZE_FAILED', 'Failed to summarize page content');
   }
 }
+
+/**
+ * 이미지 URL에서 base64 데이터 가져오기
+ */
+async function fetchImageAsBase64(imageUrl: string): Promise<{ data: string; mimeType: string } | null> {
+  try {
+    const response = await fetch(imageUrl);
+    if (!response.ok) {
+      console.warn(`Failed to fetch image: ${imageUrl}`);
+      return null;
+    }
+
+    const arrayBuffer = await response.arrayBuffer();
+    const base64 = Buffer.from(arrayBuffer).toString('base64');
+    const contentType = response.headers.get('content-type') || 'image/jpeg';
+
+    return {
+      data: base64,
+      mimeType: contentType,
+    };
+  } catch (error) {
+    console.warn(`Error fetching image ${imageUrl}:`, error);
+    return null;
+  }
+}
+
+/**
+ * 페이지 콘텐츠를 이미지와 함께 요약 (멀티모달 - 블록 기반 노트용)
+ * - 텍스트와 이미지를 함께 분석하여 요약
+ * - 캡쳐 이미지의 내용도 요약에 포함
+ */
+export async function summarizePageContentWithImages(
+  content: string,
+  imageUrls: string[],
+  title: string,
+  language: SupportedLanguage = 'ko'
+): Promise<{ summary: string }> {
+  if (!genAI) {
+    throw new AppError(500, 'GEMINI_NOT_CONFIGURED', 'Gemini API is not configured');
+  }
+
+  // 이미지가 없으면 기존 텍스트 전용 요약 사용
+  if (!imageUrls || imageUrls.length === 0) {
+    return summarizePageContentSimple(content, title, language);
+  }
+
+  try {
+    const model = genAI.getGenerativeModel({ model: SUMMARIZE_MODEL });
+
+    // 이미지들을 base64로 변환 (최대 10개로 제한)
+    const limitedUrls = imageUrls.slice(0, 10);
+    const imagePromises = limitedUrls.map(url => fetchImageAsBase64(url));
+    const imageResults = await Promise.all(imagePromises);
+    const validImages = imageResults.filter((img): img is { data: string; mimeType: string } => img !== null);
+
+    console.log(`Processing ${validImages.length} images for page summary`);
+
+    // 프롬프트 구성
+    const prompt = language === 'ko'
+      ? `다음 내용과 이미지들을 함께 분석하여 구조화된 형태로 요약해주세요.
+이미지에 포함된 텍스트, 다이어그램, 코드, 화면 캡쳐 등의 내용도 요약에 포함해주세요.
+
+제목: "${title}"
+
+텍스트 내용:
+${content || '(텍스트 없음)'}
+
+---
+응답 형식:
+1. 주요 주제별로 번호(1️⃣, 2️⃣ 등)와 함께 섹션을 나눠서 정리
+2. 각 섹션 내에서 핵심 포인트는 bullet(•, ✔️, ❌, 👉 등)으로 계층 구조화
+3. 중요한 내용은 「따옴표」나 【괄호】로 강조 (마크다운 **bold** 사용 금지)
+4. 이미지에서 발견된 중요 정보는 🖼️ 아이콘으로 표시 (예: 🖼️ 스크린샷에서: ~)
+5. 코드가 있으면 주요 부분을 설명
+6. 마지막에 "한 줄 결론" 또는 핵심 요약 한 문장 추가
+7. 존댓말 사용 (~입니다, ~했습니다, ~됩니다)
+
+머릿말이나 "요약입니다" 같은 설명 없이 바로 요약 내용만 출력하세요.`
+      : `Analyze the following content and images together to create a structured summary.
+Include content from images such as text, diagrams, code, and screenshots in the summary.
+
+Title: "${title}"
+
+Text Content:
+${content || '(No text)'}
+
+---
+Response format:
+1. Organize by main topics with numbered sections (1️⃣, 2️⃣, etc.)
+2. Use bullets (•, ✔️, ❌, 👉) for hierarchical points within sections
+3. Emphasize key points with「quotes」or【brackets】(do NOT use markdown **bold**)
+4. Mark important information from images with 🖼️ icon (e.g., 🖼️ From screenshot: ~)
+5. Explain key parts of any code found
+6. End with a one-line conclusion or key takeaway
+7. Use formal, polite language
+
+Output only the summary without any preamble like "Here's a summary".`;
+
+    // 멀티모달 콘텐츠 구성
+    const parts: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }> = [];
+
+    // 이미지들 추가
+    for (const img of validImages) {
+      parts.push({
+        inlineData: {
+          mimeType: img.mimeType,
+          data: img.data,
+        },
+      });
+    }
+
+    // 프롬프트 추가
+    parts.push({ text: prompt });
+
+    const result = await model.generateContent(parts);
+    const response = result.response;
+    const summary = response.text().trim();
+
+    return { summary };
+  } catch (error) {
+    console.error('Multimodal page summarization failed:', error);
+    // 멀티모달 실패 시 텍스트 전용 요약으로 폴백
+    console.log('Falling back to text-only summarization');
+    return summarizePageContentSimple(content, title, language);
+  }
+}

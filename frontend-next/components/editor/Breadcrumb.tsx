@@ -27,11 +27,73 @@ export default function Breadcrumb({ pageId }: BreadcrumbProps) {
         return null;
     };
 
-    const breadcrumbPath = buildPath(pageTree, pageId) || [];
+    let breadcrumbPath = buildPath(pageTree, pageId) || [];
 
-    // Don't show if page not found in tree
+    // For temp pages or pages not yet in tree, create a minimal breadcrumb
     if (breadcrumbPath.length === 0) {
-        return null;
+        // Check if this is a temp page or newly created page
+        const isTempPage = pageId.startsWith('temp-');
+
+        // Try to find parent if this page has one (look for it in all nodes)
+        const findParentPath = (nodes: PageTreeNode[]): PageTreeNode[] | null => {
+            for (const node of nodes) {
+                // Check if any child matches our pageId
+                if (node.children?.some(child => child.id === pageId)) {
+                    const parentPath = buildPath(pageTree, node.id);
+                    return parentPath;
+                }
+                if (node.children) {
+                    const found = findParentPath(node.children);
+                    if (found) return found;
+                }
+            }
+            return null;
+        };
+
+        const parentPath = findParentPath(pageTree);
+
+        if (parentPath) {
+            // We have a parent path, add current page placeholder
+            breadcrumbPath = [...parentPath, {
+                id: pageId,
+                title: "New page",
+                parentId: parentPath[parentPath.length - 1]?.id || null,
+                pageIcon: null,
+                isFolder: false,
+                collapsed: false,
+                position: 0,
+                status: "pending" as const,
+                sourceType: "note" as const,
+                audioUrl: null,
+                durationSeconds: null,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+                depth: parentPath.length,
+                children: [],
+            }];
+        } else if (isTempPage) {
+            // Root-level temp page - show minimal breadcrumb
+            breadcrumbPath = [{
+                id: pageId,
+                title: "New page",
+                parentId: null,
+                pageIcon: null,
+                isFolder: false,
+                collapsed: false,
+                position: 0,
+                status: "pending" as const,
+                sourceType: "note" as const,
+                audioUrl: null,
+                durationSeconds: null,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+                depth: 0,
+                children: [],
+            }];
+        } else {
+            // Page truly not found - don't show breadcrumb
+            return null;
+        }
     }
 
     // Remove the last item (current page) from the clickable path

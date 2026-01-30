@@ -565,7 +565,7 @@ export async function getPageTree(userId: string): Promise<PageTreeNode[]> {
  * 빈 페이지 생성 (노션 스타일)
  */
 export async function createPage(userId: string, input: CreatePage): Promise<DistillationWithHierarchy> {
-  const title = input.title?.trim() || 'Untitled';
+  const title = input.title?.trim() || 'New page';
   const sourceType = input.sourceType || 'note';
 
   const row = await queryOne<DistillationRowWithHierarchy>(

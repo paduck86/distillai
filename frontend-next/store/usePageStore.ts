@@ -105,7 +105,7 @@ export const usePageStore = create<PageState>()(
                 const newNode: PageTreeNode = {
                     id: tempId,
                     parentId: input.parentId || null,
-                    title: input.title || "Untitled",
+                    title: input.title || "New page",
                     pageIcon: null,
                     isFolder: false,
                     collapsed: false,
@@ -447,7 +447,9 @@ export const usePageStore = create<PageState>()(
                     const siblingInfo = findSiblingsInfo(get().pageTree, id);
                     if (siblingInfo) {
                         const { siblings, parentId } = siblingInfo;
-                        const newOrderIds = siblings.map(p => p.id === tempId ? newPage.id : p.id);
+                        const newOrderIds = siblings
+                            .map(p => p.id === tempId ? newPage.id : p.id)
+                            .filter(id => !id.startsWith('temp-')); // 임시 ID 필터링
                         await api.pages.reorder(newOrderIds, parentId);
                     }
 
@@ -610,7 +612,9 @@ export const usePageStore = create<PageState>()(
 
                 // 새로운 순서 계산 (API용)
                 const siblings = getChildren(newTree, targetParentId);
-                const newOrderIds = siblings.map(s => s.id);
+                const newOrderIds = siblings
+                    .map(s => s.id)
+                    .filter(id => !id.startsWith('temp-')); // 임시 ID 필터링
 
                 // 백그라운드에서 서버 동기화
                 try {

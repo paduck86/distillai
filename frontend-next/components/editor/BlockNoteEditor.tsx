@@ -5,6 +5,7 @@ import { BlockNoteView } from "@blocknote/mantine";
 import { useCreateBlockNote, getDefaultReactSlashMenuItems, SuggestionMenuController } from "@blocknote/react";
 import "@blocknote/core/fonts/inter.css";
 import "@blocknote/mantine/style.css";
+import "./block-selection.css";
 import { Sparkles, FileText, Youtube, Mic, Image as ImageIcon, Link2, Radio } from "lucide-react";
 import { useRouter } from "next/navigation";
 
@@ -355,6 +356,16 @@ export default function BlockNoteEditorComponent({ pageId }: EditorProps) {
     const justLoadedRef = useRef<boolean>(false);  // Track if content was just loaded to prevent immediate useEffect interference
     const isCreatingPageRef = useRef<boolean>(false);  // Track if page is being created to prevent useEffect interference
 
+    // Block selection state
+    const [selectedBlockIds, setSelectedBlockIds] = useState<Set<string>>(new Set());
+    const editorContainerRef = useRef<HTMLDivElement>(null);
+    const justSelectedRef = useRef<boolean>(false);  // Prevent immediate clear after Cmd+A
+
+    // Drag selection state
+    const isDraggingRef = useRef<boolean>(false);
+    const dragStartRef = useRef<{ x: number; y: number } | null>(null);
+    const selectionRectRef = useRef<HTMLDivElement | null>(null);
+
     // Initialize editor
     const editor = useCreateBlockNote();
 
@@ -464,7 +475,7 @@ export default function BlockNoteEditorComponent({ pageId }: EditorProps) {
                     {
                         type: "link",
                         href: `/page/${pageId}`,
-                        content: [{ type: "text", text: title, styles: { underline: true } }]
+                        content: [{ type: "text", text: title, styles: {} }]
                     }
                 ]
             };
@@ -508,6 +519,371 @@ export default function BlockNoteEditorComponent({ pageId }: EditorProps) {
             document.removeEventListener('mousedown', handleMouseDown, true);
         };
     }, [router, selectPage, pageId]);
+
+    // Clear block selection - defined before useEffects that use it
+    const clearBlockSelection = useCallback(() => {
+        setSelectedBlockIds(new Set());
+    }, []);
+
+    // Get blocks within a rectangle area
+    const getBlocksInRect = useCallback((rect: { left: number; top: number; right: number; bottom: number }) => {
+        const blockElements = document.querySelectorAll('.bn-block-outer[data-id]');
+        const selectedIds = new Set<string>();
+
+        blockElements.forEach((el) => {
+            const blockRect = el.getBoundingClientRect();
+            const blockId = el.getAttribute('data-id');
+
+            // Check if block overlaps with selection rectangle
+            const overlaps = !(
+                blockRect.right < rect.left ||
+                blockRect.left > rect.right ||
+                blockRect.bottom < rect.top ||
+                blockRect.top > rect.bottom
+            );
+
+            if (overlaps && blockId) {
+                // Skip H1 title blocks
+                const contentType = el.querySelector('[data-content-type]')?.getAttribute('data-content-type');
+                const level = el.querySelector('[data-level]')?.getAttribute('data-level');
+                const isTitle = contentType === 'heading' && level === '1';
+
+                if (!isTitle) {
+                    selectedIds.add(blockId);
+                }
+            }
+        });
+
+        return selectedIds;
+    }, []);
+
+    // Notion-style block selection (CSS-based via dynamic style tag, NOT text selection)
+    const selectBlocksExceptTitle = useCallback(() => {
+        if (!editor) return;
+
+        // Clear any existing text selection to prevent formatting toolbar
+        window.getSelection()?.removeAllRanges();
+
+        // Collect block IDs, excluding the title block (H1 heading)
+        const allBlockIds = new Set<string>();
+        const collectBlockIds = (blocks: any[]) => {
+            blocks.forEach((block: any) => {
+                // Skip H1 heading blocks (title)
+                const isTitle = block.type === 'heading' && block.props?.level === 1;
+                if (!isTitle) {
+                    allBlockIds.add(block.id);
+                }
+                if (block.children && block.children.length > 0) {
+                    collectBlockIds(block.children);
+                }
+            });
+        };
+        if (editor.document) {
+            collectBlockIds(editor.document);
+        }
+        setSelectedBlockIds(allBlockIds);
+
+        // Prevent immediate clear from click events
+        justSelectedRef.current = true;
+        setTimeout(() => {
+            justSelectedRef.current = false;
+        }, 100);
+
+        // Clear text selection again after a tick
+        setTimeout(() => {
+            window.getSelection()?.removeAllRanges();
+        }, 0);
+    }, [editor]);
+
+    // Apply block selection styles via dynamic <style> tag (survives React re-renders)
+    useEffect(() => {
+        const styleId = 'block-selection-styles';
+        let styleEl = document.getElementById(styleId) as HTMLStyleElement | null;
+
+        if (selectedBlockIds.size === 0) {
+            // Remove style element if no blocks selected
+            if (styleEl) {
+                styleEl.remove();
+            }
+            return;
+        }
+
+        // Create style element if it doesn't exist
+        if (!styleEl) {
+            styleEl = document.createElement('style');
+            styleEl.id = styleId;
+            document.head.appendChild(styleEl);
+        }
+
+        // Generate CSS rules for selected blocks
+        const selectors = Array.from(selectedBlockIds)
+            .map(id => `.bn-block-outer[data-id="${id}"]`)
+            .join(',\n');
+
+        styleEl.textContent = `
+            ${selectors} {
+                background-color: rgba(173, 216, 230, 0.35) !important;
+                border-radius: 4px;
+                border: none !important;
+                outline: none !important;
+                box-shadow: 0 0 0 1px var(--background) !important;
+            }
+            .dark ${selectors} {
+                background-color: rgba(135, 206, 235, 0.2) !important;
+            }
+        `;
+
+        return () => {
+            // Cleanup on unmount
+            const el = document.getElementById(styleId);
+            if (el) el.remove();
+        };
+    }, [selectedBlockIds]);
+
+    // Handle Cmd+A to select only content below title (not the title itself)
+    // This uses Notion-style BLOCK selection (CSS classes) NOT text selection
+    // Works from anywhere on the page (not just inside editor)
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            // Check for Cmd+A (Mac) or Ctrl+A (Windows)
+            if ((e.metaKey || e.ctrlKey) && e.key === 'a') {
+                // Don't intercept if user is in an input field outside the editor
+                const activeElement = document.activeElement;
+                const isInInput = activeElement?.tagName === 'INPUT' || activeElement?.tagName === 'TEXTAREA';
+                const editorElement = editorContainerRef.current;
+
+                // If in input outside editor, let default behavior happen
+                if (isInInput && editorElement && !editorElement.contains(activeElement)) {
+                    return;
+                }
+
+                e.preventDefault();
+                e.stopPropagation();
+                e.stopImmediatePropagation();
+
+                selectBlocksExceptTitle();
+            }
+        };
+
+        document.addEventListener('keydown', handleKeyDown, true);
+
+        // Expose for testing
+        (window as any).__selectBlocksExceptTitle = selectBlocksExceptTitle;
+
+        return () => {
+            document.removeEventListener('keydown', handleKeyDown, true);
+            delete (window as any).__selectBlocksExceptTitle;
+        };
+    }, [selectBlocksExceptTitle]);
+
+    // Clear block selection when clicking anywhere or typing
+    useEffect(() => {
+        const handleContentClick = (e: MouseEvent) => {
+            // Don't clear if we just selected
+            if (justSelectedRef.current) return;
+
+            // Clear selection on any click when blocks are selected
+            if (selectedBlockIds.size > 0) {
+                clearBlockSelection();
+            }
+        };
+
+        const handleKeyPress = (e: KeyboardEvent) => {
+            // Don't clear on Cmd+A itself
+            if ((e.metaKey || e.ctrlKey) && e.key === 'a') return;
+
+            // Clear on any other key press when blocks are selected
+            if (selectedBlockIds.size > 0 && !e.metaKey && !e.ctrlKey) {
+                clearBlockSelection();
+            }
+        };
+
+        document.addEventListener('click', handleContentClick, true);
+        document.addEventListener('keydown', handleKeyPress, true);
+
+        return () => {
+            document.removeEventListener('click', handleContentClick, true);
+            document.removeEventListener('keydown', handleKeyPress, true);
+        };
+    }, [selectedBlockIds, clearBlockSelection]);
+
+    // Mouse drag selection for blocks
+    // Works from anywhere in editor EXCEPT text content areas
+    useEffect(() => {
+        const editorElement = editorContainerRef.current;
+        if (!editorElement) return;
+
+        // Track selection during drag without React re-renders
+        const dragSelectedIdsRef = { current: new Set<string>() };
+
+        const handleMouseDown = (e: MouseEvent) => {
+            // Only handle left click
+            if (e.button !== 0) return;
+
+            const target = e.target as HTMLElement;
+
+            // Check if we're in the editor container
+            if (!editorElement.contains(target)) return;
+
+            // Don't start if on interactive elements
+            if (target.closest('a, button, input, textarea')) return;
+
+            // Check if clicking inside actual block content area (inline content within a block)
+            // Only prevent drag when clicking directly on text content, not on editor margins
+            const inlineContent = target.closest('.bn-inline-content');
+            if (inlineContent) {
+                // This is actual text content area - don't start drag selection here
+                return;
+            }
+
+            // Also check if we're inside a block's content area (but not on the editor root)
+            const blockContent = target.closest('.bn-block-content');
+            if (blockContent) {
+                // Clicking on block content - don't start drag
+                return;
+            }
+
+            // Start drag selection from non-text areas (margins, padding, editor background)
+            isDraggingRef.current = true;
+            dragStartRef.current = { x: e.clientX, y: e.clientY };
+
+            // Prevent text selection
+            e.preventDefault();
+            document.body.classList.add('block-selecting');
+
+            // Disable pointer events on all blocks during drag to prevent interference
+            document.querySelectorAll('.bn-block-outer, .bn-inline-content, [contenteditable]').forEach((el) => {
+                (el as HTMLElement).style.pointerEvents = 'none';
+            });
+
+            // Clear any existing text selection
+            window.getSelection()?.removeAllRanges();
+
+            // Create selection rectangle
+            if (!selectionRectRef.current) {
+                const rect = document.createElement('div');
+                rect.className = 'block-selection-rect';
+                rect.style.cssText = `
+                    position: fixed;
+                    pointer-events: none;
+                    z-index: 1000;
+                    background-color: rgba(173, 216, 230, 0.3);
+                    border: 1px solid rgba(135, 206, 235, 0.6);
+                    border-radius: 3px;
+                `;
+                document.body.appendChild(rect);
+                selectionRectRef.current = rect;
+            }
+        };
+
+        const handleMouseMove = (e: MouseEvent) => {
+            if (!isDraggingRef.current || !dragStartRef.current || !selectionRectRef.current) return;
+
+            // Prevent any default behavior during drag
+            e.preventDefault();
+            e.stopPropagation();
+
+            const start = dragStartRef.current;
+            const current = { x: e.clientX, y: e.clientY };
+
+            // Calculate rectangle bounds
+            const left = Math.min(start.x, current.x);
+            const top = Math.min(start.y, current.y);
+            const width = Math.abs(current.x - start.x);
+            const height = Math.abs(current.y - start.y);
+
+            // Update selection rectangle
+            selectionRectRef.current.style.left = `${left}px`;
+            selectionRectRef.current.style.top = `${top}px`;
+            selectionRectRef.current.style.width = `${width}px`;
+            selectionRectRef.current.style.height = `${height}px`;
+            selectionRectRef.current.style.display = 'block';
+
+            // Find blocks within rectangle and store in ref (no re-render during drag)
+            const rect = { left, top, right: left + width, bottom: top + height };
+            const blocksInRect = getBlocksInRect(rect);
+            dragSelectedIdsRef.current = blocksInRect;
+
+            // Apply visual selection via direct DOM manipulation during drag
+            document.querySelectorAll('.bn-block-outer[data-id]').forEach((el) => {
+                const blockId = el.getAttribute('data-id');
+                const htmlEl = el as HTMLElement;
+                if (blockId && blocksInRect.has(blockId)) {
+                    htmlEl.style.backgroundColor = 'rgba(173, 216, 230, 0.35)';
+                    htmlEl.style.borderRadius = '4px';
+                    htmlEl.style.border = 'none';
+                    htmlEl.style.outline = 'none';
+                } else {
+                    htmlEl.style.backgroundColor = '';
+                    htmlEl.style.borderRadius = '';
+                    htmlEl.style.border = '';
+                    htmlEl.style.outline = '';
+                }
+            });
+
+            // Clear text selection
+            window.getSelection()?.removeAllRanges();
+        };
+
+        const handleMouseUp = () => {
+            if (!isDraggingRef.current) return;
+
+            isDraggingRef.current = false;
+            dragStartRef.current = null;
+            document.body.classList.remove('block-selecting');
+
+            // Re-enable pointer events on all blocks
+            document.querySelectorAll('.bn-block-outer, .bn-inline-content, [contenteditable]').forEach((el) => {
+                (el as HTMLElement).style.pointerEvents = '';
+            });
+
+            // Remove selection rectangle
+            if (selectionRectRef.current) {
+                selectionRectRef.current.remove();
+                selectionRectRef.current = null;
+            }
+
+            // Clear direct DOM styles
+            document.querySelectorAll('.bn-block-outer[data-id]').forEach((el) => {
+                const htmlEl = el as HTMLElement;
+                htmlEl.style.backgroundColor = '';
+                htmlEl.style.borderRadius = '';
+                htmlEl.style.border = '';
+                htmlEl.style.outline = '';
+            });
+
+            // Now update React state with final selection (triggers re-render with proper CSS)
+            const finalSelection = dragSelectedIdsRef.current;
+            if (finalSelection.size > 0) {
+                setSelectedBlockIds(new Set(finalSelection));
+                justSelectedRef.current = true;
+                setTimeout(() => {
+                    justSelectedRef.current = false;
+                }, 100);
+            }
+            dragSelectedIdsRef.current = new Set();
+        };
+
+        // Use capture phase for all events to intercept before BlockNote/ProseMirror handlers
+        editorElement.addEventListener('mousedown', handleMouseDown, true);
+        document.addEventListener('mousemove', handleMouseMove, true);
+        document.addEventListener('mouseup', handleMouseUp, true);
+
+        return () => {
+            editorElement.removeEventListener('mousedown', handleMouseDown, true);
+            document.removeEventListener('mousemove', handleMouseMove, true);
+            document.removeEventListener('mouseup', handleMouseUp, true);
+            document.body.classList.remove('block-selecting');
+            // Cleanup pointer events on unmount
+            document.querySelectorAll('.bn-block-outer, .bn-inline-content, [contenteditable]').forEach((el) => {
+                (el as HTMLElement).style.pointerEvents = '';
+            });
+            if (selectionRectRef.current) {
+                selectionRectRef.current.remove();
+                selectionRectRef.current = null;
+            }
+        };
+    }, [getBlocksInRect]);
 
     // AI Slash Command Item
     const insertMagicItem = useMemo(() => ({
@@ -592,7 +968,7 @@ export default function BlockNoteEditorComponent({ pageId }: EditorProps) {
                             {
                                 type: "link",
                                 href: `/page/${newPageId}`,
-                                content: [{ type: "text", text: "Untitled", styles: { underline: true } }]
+                                content: [{ type: "text", text: "Untitled", styles: {} }]
                             }
                         ]
                     } as any;
@@ -1073,7 +1449,7 @@ export default function BlockNoteEditorComponent({ pageId }: EditorProps) {
                         {
                             type: "link",
                             href: `/page/${child.id}`,
-                            content: [{ type: "text", text: child.title, styles: { underline: true } }]
+                            content: [{ type: "text", text: child.title, styles: {} }]
                         }
                     ]
                 });
@@ -1243,7 +1619,10 @@ export default function BlockNoteEditorComponent({ pageId }: EditorProps) {
                 onSaveWithoutAI={handleRecordingSaveWithoutAI}
             />
 
-            <div className="max-w-4xl mx-auto pl-12 pr-4 md:pl-16 md:pr-12 pt-8 md:pt-16 pb-4 w-full overflow-visible">
+            <div
+                ref={editorContainerRef}
+                className="max-w-4xl mx-auto pl-12 pr-4 md:pl-16 md:pr-12 pt-8 md:pt-16 pb-4 w-full overflow-visible"
+            >
                 <Breadcrumb pageId={pageId} />
 
                 {/* AI Ingestion Panel (inline at block position) */}

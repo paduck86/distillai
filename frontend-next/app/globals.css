@@ -207,7 +207,7 @@ body {
 }
 
 /* Remove any default height from BlockNote internal elements */
-.bn-editor > div,
+.bn-editor>div,
 .bn-block-group {
   min-height: auto !important;
   height: auto !important;
@@ -242,18 +242,15 @@ body {
   color: var(--color-error);
 }
 
-/* BlockNote link underline style */
+/* BlockNote link style */
 .bn-editor a {
   color: var(--foreground);
   text-decoration: none;
-  border-bottom: 1px solid var(--border);
-  padding-bottom: 1px;
-  transition: border-color 0.15s ease;
   cursor: pointer;
 }
 
 .bn-editor a:hover {
-  border-color: var(--foreground-secondary);
+  color: var(--color-primary);
 }
 
 /* Custom scrollbar */
@@ -287,10 +284,12 @@ body {
 }
 
 @keyframes pulse {
+
   0%,
   100% {
     opacity: 1;
   }
+
   50% {
     opacity: 0.5;
   }
@@ -351,4 +350,113 @@ body {
   .pt-safe {
     padding-top: max(0.75rem, env(safe-area-inset-top));
   }
+}
+
+/* BlockNote selection styles override - Notion style */
+.bn-editor .ProseMirror-selectednode,
+.bn-editor .bn-block-outer.ProseMirror-selectednode,
+.bn-editor [data-node-type="blockOuter"].ProseMirror-selectednode {
+  background-color: rgba(35, 131, 226, 0.08) !important;
+  border-radius: 3px;
+  outline: none !important;
+}
+
+.dark .bn-editor .ProseMirror-selectednode,
+.dark .bn-editor .bn-block-outer.ProseMirror-selectednode {
+  background-color: rgba(35, 131, 226, 0.12) !important;
+}
+
+/* Block selection range - when multiple blocks selected */
+.bn-editor .bn-block-outer:has(.ProseMirror-selectednode),
+.bn-editor .bn-block-group .bn-block-outer:has(.ProseMirror-selectednode) {
+  background-color: rgba(35, 131, 226, 0.08) !important;
+  border-radius: 3px;
+}
+
+.dark .bn-editor .bn-block-outer:has(.ProseMirror-selectednode) {
+  background-color: rgba(35, 131, 226, 0.12) !important;
+}
+
+/* Prevent text selection cursor flash during drag */
+.bn-editor.is-dragging * {
+  user-select: none !important;
+}
+
+/* Custom block selection (Cmd+A, drag selection) */
+.bn-block-outer.selected,
+.bn-block-outer[data-block-selected="true"] {
+  background-color: rgba(35, 131, 226, 0.15) !important;
+  border-radius: 3px;
+}
+
+.dark .bn-block-outer.selected,
+.dark .bn-block-outer[data-block-selected="true"] {
+  background-color: rgba(35, 131, 226, 0.2) !important;
+}
+
+.bn-block-outer.selected .bn-block-content,
+.bn-block-outer[data-block-selected="true"] .bn-block-content {
+  background-color: transparent !important;
+}
+
+/* Prevent text selection during block selection drag */
+body.block-selecting {
+  user-select: none !important;
+  -webkit-user-select: none !important;
+  cursor: default !important;
+}
+
+body.block-selecting * {
+  user-select: none !important;
+  -webkit-user-select: none !important;
+}
+
+body.block-selecting .bn-editor {
+  cursor: default !important;
+}
+
+body.block-selecting [contenteditable] {
+  cursor: default !important;
+  caret-color: transparent !important;
+}
+
+/* Notion-style H1 Title - looks like plain text input */
+.bn-editor [data-content-type="heading"][data-level="1"] {
+  font-size: 2.25rem !important;
+  font-weight: 700 !important;
+  line-height: 1.2 !important;
+  margin-top: 0 !important;
+  padding-top: 0 !important;
+}
+
+.bn-editor [data-content-type="heading"][data-level="1"] .bn-inline-content {
+  border: none !important;
+  outline: none !important;
+  caret-color: var(--foreground) !important;
+}
+
+/* Ensure caret is visible in all editable content */
+.bn-editor [contenteditable="true"] {
+  caret-color: var(--foreground) !important;
+}
+
+/* Ensure caret is visible in all inline content areas */
+.bn-editor .bn-inline-content {
+  caret-color: var(--foreground) !important;
+}
+
+/* Ensure empty paragraphs show caret */
+.bn-editor [data-content-type="paragraph"] .bn-inline-content {
+  caret-color: var(--foreground) !important;
+  min-height: 1.5em;
+}
+
+/* H1 Placeholder - "New page" when empty */
+.bn-editor [data-content-type="heading"][data-level="1"] .bn-inline-content:empty::before,
+.bn-editor [data-content-type="heading"][data-level="1"] .bn-inline-content:has(> br:only-child)::before {
+  content: "New page";
+  color: var(--foreground-tertiary);
+  pointer-events: none;
+  position: absolute;
+  font-weight: 700;
 }

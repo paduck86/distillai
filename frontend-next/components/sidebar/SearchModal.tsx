@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { Search, X, FileText, Command } from "lucide-react";
 import { usePageStore, getFlattenedPages } from "@/store/usePageStore";
@@ -9,13 +10,19 @@ import { PageTreeNode } from "@/lib/types";
 interface SearchModalProps {
     isOpen: boolean;
     onClose: () => void;
+    userName?: string;
 }
 
-export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
+export default function SearchModal({ isOpen, onClose, userName }: SearchModalProps) {
     const router = useRouter();
     const inputRef = useRef<HTMLInputElement>(null);
     const [query, setQuery] = useState("");
+    const [mounted, setMounted] = useState(false);
     const { pageTree, recentViews, selectPage } = usePageStore();
+
+    useEffect(() => {
+        setMounted(true);
+    }, []);
 
     const flattenedPages = useMemo(() => getFlattenedPages(pageTree), [pageTree]);
 
@@ -45,21 +52,46 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
         ).slice(0, 10);
     }, [query, flattenedPages]);
 
-    // Get today's date string
-    const getTodayLabel = (): string => {
-        const today = new Date();
-        return `${today.getFullYear()}.${String(today.getMonth() + 1).padStart(2, '0')}.${String(today.getDate()).padStart(2, '0')}`;
-    };
+    // Group recent pages by time period
+    const groupedRecentPages = useMemo(() => {
+        const now = new Date();
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const yesterday = new Date(today.getTime() - 24 * 60 * 60 * 1000);
+        const lastWeek = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+        const last30Days = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000);
 
-    // Get recent pages with full info
-    const recentPages = useMemo(() => {
-        return recentViews
-            .slice(0, 5)
-            .map(rv => {
-                const page = flattenedPages.find(p => p.id === rv.id);
-                return page ? { ...page, viewedAt: rv.viewedAt } : null;
-            })
-            .filter(Boolean) as (PageTreeNode & { viewedAt: string })[];
+        const groups: {
+            label: string;
+            pages: (PageTreeNode & { viewedAt: string })[];
+        }[] = [
+            { label: "오늘", pages: [] },
+            { label: "어제", pages: [] },
+            { label: "지난 주", pages: [] },
+            { label: "최근 30일", pages: [] },
+            { label: "더 오래된 항목", pages: [] },
+        ];
+
+        recentViews.forEach(rv => {
+            const page = flattenedPages.find(p => p.id === rv.id);
+            if (!page) return;
+
+            const viewedDate = new Date(rv.viewedAt);
+            const pageWithDate = { ...page, viewedAt: rv.viewedAt };
+
+            if (viewedDate >= today) {
+                groups[0].pages.push(pageWithDate);
+            } else if (viewedDate >= yesterday) {
+                groups[1].pages.push(pageWithDate);
+            } else if (viewedDate >= lastWeek) {
+                groups[2].pages.push(pageWithDate);
+            } else if (viewedDate >= last30Days) {
+                groups[3].pages.push(pageWithDate);
+            } else {
+                groups[4].pages.push(pageWithDate);
+            }
+        });
+
+        return groups.filter(g => g.pages.length > 0);
     }, [recentViews, flattenedPages]);
 
     // Focus input when modal opens
@@ -90,22 +122,16 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
         onClose();
     };
 
-    if (!isOpen) return null;
+    if (!isOpen || !mounted) return null;
 
-    return (
+    return createPortal(
         <div
-            className="fixed inset-0 z-50 flex items-start justify-center pt-[15vh]"
+            className="fixed inset-0 z-[9999]"
             onClick={onClose}
         >
-            {/* Backdrop */}
+            {/* Modal - responsive positioning */}
             <div
-                className="absolute inset-0"
-                style={{ backgroundColor: "rgba(0, 0, 0, 0.5)" }}
-            />
-
-            {/* Modal */}
-            <div
-                className="relative w-full max-w-[600px] mx-4 rounded-xl shadow-2xl overflow-hidden"
+                className="absolute top-[15vh] md:top-[10vh] left-4 right-4 md:left-[330px] md:right-auto w-auto md:w-full max-w-[540px] rounded-xl shadow-2xl overflow-hidden"
                 style={{
                     backgroundColor: "var(--card-background)",
                     border: "1px solid var(--border)"
@@ -126,7 +152,7 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
                         type="text"
                         value={query}
                         onChange={(e) => setQuery(e.target.value)}
-                        placeholder="검색..."
+                        placeholder={userName ? `${userName}의 페이지 검색...` : "검색..."}
                         className="flex-1 bg-transparent outline-none text-base"
                         style={{ color: "var(--foreground)" }}
                     />
@@ -164,22 +190,26 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
                             </div>
                         )
                     ) : (
-                        // Recent Pages
-                        recentPages.length > 0 && (
+                        // Recent Pages grouped by time
+                        groupedRecentPages.length > 0 && (
                             <div className="py-2">
-                                <div
-                                    className="px-4 py-2 text-xs font-medium"
-                                    style={{ color: "var(--foreground-tertiary)" }}
-                                >
-                                    오늘 — {getTodayLabel()}
-                                </div>
-                                {recentPages.map((page) => (
-                                    <SearchResultItem
-                                        key={page.id}
-                                        page={page}
-                                        parentPath={getParentPath(page.id)}
-                                        onClick={() => handlePageClick(page.id)}
-                                    />
+                                {groupedRecentPages.map((group) => (
+                                    <div key={group.label}>
+                                        <div
+                                            className="px-4 py-2 text-xs font-medium"
+                                            style={{ color: "var(--foreground-tertiary)" }}
+                                        >
+                                            {group.label}
+                                        </div>
+                                        {group.pages.map((page) => (
+                                            <SearchResultItem
+                                                key={page.id}
+                                                page={page}
+                                                parentPath={getParentPath(page.id)}
+                                                onClick={() => handlePageClick(page.id)}
+                                            />
+                                        ))}
+                                    </div>
                                 ))}
                             </div>
                         )
@@ -220,7 +250,8 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
                     </div>
                 </div>
             </div>
-        </div>
+        </div>,
+        document.body
     );
 }
 

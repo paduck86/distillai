@@ -1,0 +1,76 @@
+/* Block Selection CSS for BlockNote Editor */
+
+/* Cmd+A selected blocks - support both BlockNote class patterns */
+.bn-block-outer.all-selected,
+.bn-block-outer[data-all-selected="true"],
+[data-node-type="blockContainer"].all-selected,
+[data-node-type="blockContainer"][data-all-selected="true"] {
+  background-color: rgba(35, 131, 226, 0.2) !important;
+  border-radius: 4px;
+}
+
+.dark .bn-block-outer.all-selected,
+.dark .bn-block-outer[data-all-selected="true"],
+.dark [data-node-type="blockContainer"].all-selected,
+.dark [data-node-type="blockContainer"][data-all-selected="true"] {
+  background-color: rgba(35, 131, 226, 0.3) !important;
+}
+
+/* Drag selection visual feedback - support both BlockNote class patterns */
+.bn-block-outer.drag-selected,
+.bn-block-outer[data-drag-selected="true"],
+[data-node-type="blockContainer"].drag-selected,
+[data-node-type="blockContainer"][data-drag-selected="true"] {
+  background-color: rgba(35, 131, 226, 0.2) !important;
+  border-radius: 4px;
+  transition: background-color 0.1s ease;
+}
+
+.dark .bn-block-outer.drag-selected,
+.dark .bn-block-outer[data-drag-selected="true"],
+.dark [data-node-type="blockContainer"].drag-selected,
+.dark [data-node-type="blockContainer"][data-drag-selected="true"] {
+  background-color: rgba(35, 131, 226, 0.3) !important;
+}
+
+/* Selection rectangle during drag */
+.block-selection-rect {
+  position: fixed;
+  background-color: rgba(35, 131, 226, 0.1);
+  border: 1px solid rgba(35, 131, 226, 0.5);
+  border-radius: 3px;
+  pointer-events: none;
+  z-index: 1000;
+}
+
+.dark .block-selection-rect {
+  background-color: rgba(35, 131, 226, 0.15);
+  border-color: rgba(35, 131, 226, 0.6);
+}
+
+/* Remove text selection when blocks are selected */
+.blocks-selected .bn-editor {
+  user-select: none !important;
+  -webkit-user-select: none !important;
+}
+
+/* Prevent text selection during block selection drag */
+body.block-selecting {
+  user-select: none !important;
+  -webkit-user-select: none !important;
+  cursor: default !important;
+}
+
+body.block-selecting * {
+  user-select: none !important;
+  -webkit-user-select: none !important;
+}
+
+body.block-selecting .bn-editor {
+  cursor: default !important;
+}
+
+body.block-selecting [contenteditable] {
+  cursor: default !important;
+  caret-color: transparent !important;
+}

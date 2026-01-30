@@ -74,6 +74,57 @@ function flattenBlocksText(blocks: Block[]): string {
 }
 
 /**
+ * 특정 Distillation의 모든 이미지 URL 추출 (멀티모달 요약용)
+ */
+export async function getBlocksImageUrls(
+  userId: string,
+  distillationId: string
+): Promise<string[]> {
+  const blocks = await getBlocks(userId, distillationId);
+  return flattenBlocksImageUrls(blocks);
+}
+
+function flattenBlocksImageUrls(blocks: Block[]): string[] {
+  const imageUrls: string[] = [];
+  for (const block of blocks) {
+    // embed 블록에서 이미지 URL 추출
+    if (block.type === 'embed' && block.properties?.embedType === 'image' && block.properties?.embedUrl) {
+      imageUrls.push(block.properties.embedUrl);
+    }
+    // content에 이미지 URL이 포함된 경우도 확인 (예: ![](url) 형식)
+    if (block.content) {
+      const imgMatches = block.content.match(/!\[.*?\]\((https?:\/\/[^\s)]+)\)/g);
+      if (imgMatches) {
+        for (const match of imgMatches) {
+          const urlMatch = match.match(/\((https?:\/\/[^\s)]+)\)/);
+          if (urlMatch && urlMatch[1]) {
+            imageUrls.push(urlMatch[1]);
+          }
+        }
+      }
+    }
+    if (block.children && block.children.length > 0) {
+      imageUrls.push(...flattenBlocksImageUrls(block.children));
+    }
+  }
+  return imageUrls;
+}
+
+/**
+ * 블록에서 텍스트와 이미지 URL 모두 추출 (멀티모달 요약용)
+ */
+export async function getBlocksContentWithImages(
+  userId: string,
+  distillationId: string
+): Promise<{ text: string; imageUrls: string[] }> {
+  const blocks = await getBlocks(userId, distillationId);
+  return {
+    text: flattenBlocksText(blocks),
+    imageUrls: flattenBlocksImageUrls(blocks),
+  };
+}
+
+/**
  * 단일 블록 조회
  */
 export async function getBlock(

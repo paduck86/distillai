@@ -527,16 +527,22 @@ export async function summarizeLecture(req: Request, res: Response, next: NextFu
         // Process with Gemini (요약 + AI 카테고리 추출)
         result = await aiService.summarizeWithCategoryExtraction(audioUrl, lecture.title, language);
       } else {
-        // 블록 데이터에서 텍스트 추출하여 간단 요약
-        console.log(`Processing block content for simple summary: ${id}`);
-        const blocksText = await blockService.getBlocksText(userId, id);
+        // 블록 데이터에서 텍스트와 이미지 추출하여 멀티모달 요약
+        console.log(`Processing block content for multimodal summary: ${id}`);
+        const { text: blocksText, imageUrls } = await blockService.getBlocksContentWithImages(userId, id);
 
-        if (!blocksText || blocksText.trim().length < 10) {
+        if ((!blocksText || blocksText.trim().length < 10) && imageUrls.length === 0) {
           throw new ValidationError('요약할 내용이 없습니다. 내용을 먼저 입력해주세요.');
         }
 
-        // 간단한 요약 수행 (2-3문장)
-        const simpleResult = await aiService.summarizePageContentSimple(blocksText, lecture.title, language);
+        // 이미지가 있으면 멀티모달 요약, 없으면 텍스트 전용 요약
+        console.log(`Found ${imageUrls.length} images in blocks`);
+        const simpleResult = await aiService.summarizePageContentWithImages(
+          blocksText,
+          imageUrls,
+          lecture.title,
+          language
+        );
         result = {
           summary: simpleResult.summary,
           transcript: blocksText,
