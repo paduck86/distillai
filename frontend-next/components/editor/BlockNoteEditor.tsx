@@ -1139,6 +1139,24 @@ export default function BlockNoteEditorComponent({ pageId }: EditorProps) {
             // Don't clear on Cmd+A itself
             if ((e.metaKey || e.ctrlKey) && e.key === 'a') return;
 
+            // Handle Delete/Backspace to remove selected blocks
+            if (selectedBlockIds.size > 0 && (e.key === 'Delete' || e.key === 'Backspace')) {
+                e.preventDefault();
+                e.stopPropagation();
+
+                // Delete selected blocks
+                const blocksToDelete = Array.from(selectedBlockIds).map(id => ({ id }));
+                if (blocksToDelete.length > 0 && editor) {
+                    try {
+                        editor.removeBlocks(blocksToDelete);
+                        clearBlockSelection();
+                    } catch (err) {
+                        console.error('Failed to delete blocks:', err);
+                    }
+                }
+                return;
+            }
+
             // Clear on any other key press when blocks are selected
             if (selectedBlockIds.size > 0 && !e.metaKey && !e.ctrlKey) {
                 clearBlockSelection();
@@ -1152,7 +1170,7 @@ export default function BlockNoteEditorComponent({ pageId }: EditorProps) {
             document.removeEventListener('click', handleContentClick, true);
             document.removeEventListener('keydown', handleKeyPress, true);
         };
-    }, [selectedBlockIds, clearBlockSelection]);
+    }, [selectedBlockIds, clearBlockSelection, editor]);
 
     // Mouse drag selection for blocks
     // Works from anywhere in main content area EXCEPT text content areas
@@ -1285,6 +1303,11 @@ export default function BlockNoteEditorComponent({ pageId }: EditorProps) {
             }
         };
 
+        // Auto-scroll interval ref
+        let autoScrollInterval: NodeJS.Timeout | null = null;
+        const SCROLL_EDGE_SIZE = 60; // Distance from edge to trigger scroll
+        const SCROLL_SPEED = 15; // Pixels per scroll tick
+
         const handleMouseMove = (e: MouseEvent) => {
             if (!isDraggingRef.current || !dragStartRef.current || !selectionRectRef.current) return;
 
@@ -1293,16 +1316,45 @@ export default function BlockNoteEditorComponent({ pageId }: EditorProps) {
             // Note: Don't call stopPropagation() here as it would block other event handlers
             // like the drag reorder mousemove handler
 
+            // Find the scrollable container (main element with overflow)
+            const scrollContainer = document.querySelector('main');
+            const scrollableDiv = scrollContainer?.querySelector('.overflow-y-auto') || scrollContainer;
+
+            // Auto-scroll when near edges
+            if (scrollableDiv) {
+                const containerRect = scrollableDiv.getBoundingClientRect();
+                const mouseY = e.clientY;
+
+                // Clear existing auto-scroll
+                if (autoScrollInterval) {
+                    clearInterval(autoScrollInterval);
+                    autoScrollInterval = null;
+                }
+
+                // Check if near top or bottom edge
+                if (mouseY < containerRect.top + SCROLL_EDGE_SIZE) {
+                    // Near top - scroll up
+                    autoScrollInterval = setInterval(() => {
+                        scrollableDiv.scrollTop -= SCROLL_SPEED;
+                    }, 16);
+                } else if (mouseY > containerRect.bottom - SCROLL_EDGE_SIZE) {
+                    // Near bottom - scroll down
+                    autoScrollInterval = setInterval(() => {
+                        scrollableDiv.scrollTop += SCROLL_SPEED;
+                    }, 16);
+                }
+            }
+
             const start = dragStartRef.current;
             const current = { x: e.clientX, y: e.clientY };
 
-            // Calculate rectangle bounds
+            // Calculate rectangle bounds (using viewport coordinates)
             const left = Math.min(start.x, current.x);
             const top = Math.min(start.y, current.y);
             const width = Math.abs(current.x - start.x);
             const height = Math.abs(current.y - start.y);
 
-            // Update selection rectangle
+            // Update selection rectangle (fixed position, so uses viewport coords)
             selectionRectRef.current.style.left = `${left}px`;
             selectionRectRef.current.style.top = `${top}px`;
             selectionRectRef.current.style.width = `${width}px`;
@@ -1335,8 +1387,19 @@ export default function BlockNoteEditorComponent({ pageId }: EditorProps) {
             window.getSelection()?.removeAllRanges();
         };
 
+        // Cleanup auto-scroll on mouse up
+        const clearAutoScroll = () => {
+            if (autoScrollInterval) {
+                clearInterval(autoScrollInterval);
+                autoScrollInterval = null;
+            }
+        };
+
         const handleMouseUp = () => {
             if (!isDraggingRef.current) return;
+
+            // Clear auto-scroll
+            clearAutoScroll();
 
             isDraggingRef.current = false;
             dragStartRef.current = null;
@@ -1395,6 +1458,7 @@ export default function BlockNoteEditorComponent({ pageId }: EditorProps) {
             document.removeEventListener('mousemove', handleMouseMove, true);
             document.removeEventListener('mouseup', handleMouseUp, true);
             document.body.classList.remove('block-selecting');
+            clearAutoScroll();
             // Cleanup pointer events on unmount
             document.querySelectorAll('.bn-block-outer, .bn-inline-content, [contenteditable]').forEach((el) => {
                 (el as HTMLElement).style.pointerEvents = '';
