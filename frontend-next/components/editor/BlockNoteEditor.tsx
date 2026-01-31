@@ -358,6 +358,8 @@ export default function BlockNoteEditorComponent({ pageId }: EditorProps) {
 
     // Block selection state
     const [selectedBlockIds, setSelectedBlockIds] = useState<Set<string>>(new Set());
+    const [selectedPageBlockIds, setSelectedPageBlockIds] = useState<Set<string>>(new Set());  // Track which selected blocks are page links
+    const selectedPageBlockIdsRef = useRef<Set<string>>(new Set());  // Sync ref for immediate access in event handlers
     const editorContainerRef = useRef<HTMLDivElement>(null);
     const justSelectedRef = useRef<boolean>(false);  // Prevent immediate clear after Cmd+A
 
@@ -365,7 +367,6 @@ export default function BlockNoteEditorComponent({ pageId }: EditorProps) {
     const isDraggingRef = useRef<boolean>(false);
     const dragStartRef = useRef<{ x: number; y: number } | null>(null);
     const selectionRectRef = useRef<HTMLDivElement | null>(null);
-
     // Initialize editor
     const editor = useCreateBlockNote();
 
@@ -482,37 +483,45 @@ export default function BlockNoteEditorComponent({ pageId }: EditorProps) {
         });
     }, [findPageById]);
 
-    // Handle internal link clicks - use mousedown to catch before BlockNote/TipTap
+    // Handle page block clicks - prevent cursor and handle navigation
     useEffect(() => {
         const handleMouseDown = (e: MouseEvent) => {
             const target = e.target as HTMLElement;
             if (!target) return;
 
-            // Find anchor tag
-            const anchor = target.tagName === 'A'
-                ? target as HTMLAnchorElement
-                : target.closest('a');
+            // Find the block this click is in
+            const blockOuter = target.closest('.bn-block-outer[data-id]');
+            if (!blockOuter) return;
 
-            if (!anchor) return;
+            // Check if this block contains a /page/ link (don't rely on data attribute)
+            const pageLink = blockOuter.querySelector('a[href^="/page/"]') as HTMLAnchorElement | null;
+            if (!pageLink) return;
 
-            const href = anchor.getAttribute('href') || '';
+            // This is a page block - prevent cursor
+            e.preventDefault();
+            e.stopPropagation();
 
-            // Check if it's an internal page link
-            if (href.startsWith('/page/')) {
-                e.preventDefault();
-                e.stopPropagation();
-                e.stopImmediatePropagation();
+            // Blur any focused element
+            if (document.activeElement instanceof HTMLElement) {
+                document.activeElement.blur();
+            }
 
-                const targetPageId = href.replace('/page/', '');
+            const blockId = blockOuter.getAttribute('data-id');
 
-                if (targetPageId && targetPageId !== pageId) {
-                    selectPage(targetPageId);
-                    router.push(`/page/${targetPageId}`);
-                }
+            // If block is selected (multi-select mode), don't navigate
+            if (blockId && selectedPageBlockIdsRef.current.has(blockId)) {
+                return;
+            }
+
+            // Navigate to the page
+            const href = pageLink.getAttribute('href') || '';
+            const targetPageId = href.replace('/page/', '');
+            if (targetPageId && targetPageId !== pageId) {
+                selectPage(targetPageId);
+                router.push(`/page/${targetPageId}`);
             }
         };
 
-        // mousedown fires before click, so we can intercept first
         document.addEventListener('mousedown', handleMouseDown, true);
 
         return () => {
@@ -520,15 +529,32 @@ export default function BlockNoteEditorComponent({ pageId }: EditorProps) {
         };
     }, [router, selectPage, pageId]);
 
+    // Helper to get page link block IDs from DOM (more reliable than parsing BlockNote content)
+    const getPageLinkBlockIds = useCallback((): Set<string> => {
+        const pageBlockIds = new Set<string>();
+        document.querySelectorAll('.bn-block-outer a[href^="/page/"]').forEach(link => {
+            const blockOuter = link.closest('.bn-block-outer[data-id]');
+            const blockId = blockOuter?.getAttribute('data-id');
+            if (blockId) {
+                pageBlockIds.add(blockId);
+            }
+        });
+        return pageBlockIds;
+    }, []);
+
     // Clear block selection - defined before useEffects that use it
     const clearBlockSelection = useCallback(() => {
         setSelectedBlockIds(new Set());
+        setSelectedPageBlockIds(new Set());
+        selectedPageBlockIdsRef.current = new Set();
     }, []);
 
-    // Get blocks within a rectangle area
-    const getBlocksInRect = useCallback((rect: { left: number; top: number; right: number; bottom: number }) => {
+    // Get blocks within a rectangle area (returns both selected IDs and page block IDs)
+    const getBlocksInRect = useCallback((rect: { left: number; top: number; right: number; bottom: number }): { selectedIds: Set<string>; pageBlockIds: Set<string> } => {
         const blockElements = document.querySelectorAll('.bn-block-outer[data-id]');
         const selectedIds = new Set<string>();
+        const pageBlockIdsInRect = new Set<string>();
+        const allPageBlockIds = getPageLinkBlockIds();
 
         blockElements.forEach((el) => {
             const blockRect = el.getBoundingClientRect();
@@ -543,20 +569,24 @@ export default function BlockNoteEditorComponent({ pageId }: EditorProps) {
             );
 
             if (overlaps && blockId) {
-                // Skip H1 title blocks - check for actual h1 element or heading with level 1
-                const hasH1Element = el.querySelector('h1') !== null;
+                // Skip H1 title blocks - check for h1 tag or data-level="1"
+                const hasH1Tag = el.querySelector('h1') !== null;
                 const contentType = el.querySelector('[data-content-type]')?.getAttribute('data-content-type');
                 const level = el.querySelector('[data-level]')?.getAttribute('data-level');
-                const isTitle = hasH1Element || (contentType === 'heading' && level === '1');
+                const isTitle = hasH1Tag || (contentType === 'heading' && level === '1');
 
                 if (!isTitle) {
                     selectedIds.add(blockId);
+                    // Check if this is a page link block
+                    if (allPageBlockIds.has(blockId)) {
+                        pageBlockIdsInRect.add(blockId);
+                    }
                 }
             }
         });
 
-        return selectedIds;
-    }, []);
+        return { selectedIds, pageBlockIds: pageBlockIdsInRect };
+    }, [getPageLinkBlockIds]);
 
     // Notion-style block selection (CSS-based via dynamic style tag, NOT text selection)
     const selectBlocksExceptTitle = useCallback(() => {
@@ -582,7 +612,33 @@ export default function BlockNoteEditorComponent({ pageId }: EditorProps) {
         if (editor.document) {
             collectBlockIds(editor.document);
         }
+
+        // Find page link blocks from DOM (more reliable than parsing BlockNote content structure)
+        const pageBlockIds = new Set<string>();
+        document.querySelectorAll('.bn-block-outer a[href^="/page/"]').forEach(link => {
+            const blockOuter = link.closest('.bn-block-outer[data-id]');
+            const blockId = blockOuter?.getAttribute('data-id');
+            if (blockId && allBlockIds.has(blockId)) {
+                pageBlockIds.add(blockId);
+            }
+        });
+
         setSelectedBlockIds(allBlockIds);
+        setSelectedPageBlockIds(pageBlockIds);
+        selectedPageBlockIdsRef.current = pageBlockIds;  // Sync ref
+
+        // Immediately set DOM attributes for page blocks (before React re-render)
+        // This ensures the attribute is available for mousedown handlers
+        pageBlockIds.forEach(blockId => {
+            const blockEl = document.querySelector(`.bn-block-outer[data-id="${blockId}"]`);
+            if (blockEl) {
+                blockEl.setAttribute('data-page-block-selected', 'true');
+                const contentEditable = blockEl.querySelector('[contenteditable]');
+                if (contentEditable) {
+                    (contentEditable as HTMLElement).contentEditable = 'false';
+                }
+            }
+        });
 
         // Prevent immediate clear from click events
         justSelectedRef.current = true;
@@ -596,6 +652,53 @@ export default function BlockNoteEditorComponent({ pageId }: EditorProps) {
         }, 0);
     }, [editor]);
 
+    // Mark page blocks with data attribute and disable contentEditable
+    // This prevents cursor from appearing in page link blocks
+    useEffect(() => {
+        if (!editor || isLoading) return;
+
+        // Function to mark all page blocks and disable editing
+        const markPageBlocks = () => {
+            document.querySelectorAll('.bn-block-outer[data-id]').forEach((el) => {
+                const hasPageLink = el.querySelector('a[href^="/page/"]');
+                const contentEditable = el.querySelector('[contenteditable]') as HTMLElement | null;
+
+                if (hasPageLink) {
+                    el.setAttribute('data-is-page-block', 'true');
+                    // Disable contentEditable to prevent cursor
+                    if (contentEditable && contentEditable.contentEditable !== 'false') {
+                        contentEditable.contentEditable = 'false';
+                    }
+                } else {
+                    el.removeAttribute('data-is-page-block');
+                    // Re-enable contentEditable for non-page blocks
+                    if (contentEditable && contentEditable.contentEditable === 'false') {
+                        contentEditable.contentEditable = 'true';
+                    }
+                }
+            });
+        };
+
+        // Initial marking with delay to ensure DOM is ready
+        setTimeout(markPageBlocks, 100);
+
+        // Observe DOM changes to keep attributes updated
+        const observer = new MutationObserver(() => {
+            requestAnimationFrame(markPageBlocks);
+        });
+
+        const editorEl = document.querySelector('.bn-editor');
+        if (editorEl) {
+            observer.observe(editorEl, {
+                childList: true,
+                subtree: true,
+                characterData: true
+            });
+        }
+
+        return () => observer.disconnect();
+    }, [editor, isLoading]);
+
     // Apply block selection styles via dynamic <style> tag (survives React re-renders)
     useEffect(() => {
         const styleId = 'block-selection-styles';
@@ -606,6 +709,14 @@ export default function BlockNoteEditorComponent({ pageId }: EditorProps) {
             if (styleEl) {
                 styleEl.remove();
             }
+            // Re-enable editing on all blocks
+            document.querySelectorAll('.bn-block-outer[data-page-block-selected="true"]').forEach((el) => {
+                el.removeAttribute('data-page-block-selected');
+                const contentEditable = el.querySelector('[contenteditable]');
+                if (contentEditable) {
+                    (contentEditable as HTMLElement).contentEditable = 'true';
+                }
+            });
             return;
         }
 
@@ -621,6 +732,26 @@ export default function BlockNoteEditorComponent({ pageId }: EditorProps) {
             .map(id => `.bn-block-outer[data-id="${id}"]`)
             .join(',\n');
 
+        // Generate CSS rules for selected page blocks (hide cursor, disable editing)
+        const pageBlockSelectors = Array.from(selectedPageBlockIds)
+            .map(id => `.bn-block-outer[data-id="${id}"]`)
+            .join(',\n');
+
+        let pageBlockStyles = '';
+        if (selectedPageBlockIds.size > 0) {
+            pageBlockStyles = `
+            ${pageBlockSelectors} [contenteditable] {
+                caret-color: transparent !important;
+                cursor: default !important;
+                user-select: none !important;
+                -webkit-user-select: none !important;
+            }
+            ${pageBlockSelectors} .bn-inline-content {
+                pointer-events: none !important;
+            }
+            `;
+        }
+
         styleEl.textContent = `
             ${selectors} {
                 background-color: rgba(173, 216, 230, 0.35) !important;
@@ -632,14 +763,40 @@ export default function BlockNoteEditorComponent({ pageId }: EditorProps) {
             .dark ${selectors} {
                 background-color: rgba(135, 206, 235, 0.2) !important;
             }
+            ${pageBlockStyles}
         `;
+
+        // Mark page blocks and disable contentEditable
+        document.querySelectorAll('.bn-block-outer[data-id]').forEach((el) => {
+            const blockId = el.getAttribute('data-id');
+            if (blockId && selectedPageBlockIds.has(blockId)) {
+                el.setAttribute('data-page-block-selected', 'true');
+                const contentEditable = el.querySelector('[contenteditable]');
+                if (contentEditable) {
+                    (contentEditable as HTMLElement).contentEditable = 'false';
+                    // Blur if currently focused
+                    if (document.activeElement === contentEditable) {
+                        (contentEditable as HTMLElement).blur();
+                    }
+                }
+            }
+        });
+
+        // Blur the editor to hide any cursor in page blocks
+        if (selectedPageBlockIds.size > 0) {
+            const activeEl = document.activeElement as HTMLElement;
+            if (activeEl?.closest?.('.bn-block-outer[data-page-block-selected="true"]')) {
+                activeEl.blur();
+            }
+        }
 
         return () => {
             // Cleanup on unmount
             const el = document.getElementById(styleId);
             if (el) el.remove();
         };
-    }, [selectedBlockIds]);
+    }, [selectedBlockIds, selectedPageBlockIds]);
+
 
     // Handle Cmd+A to select only content below title (not the title itself)
     // This uses Notion-style BLOCK selection (CSS classes) NOT text selection
@@ -683,9 +840,29 @@ export default function BlockNoteEditorComponent({ pageId }: EditorProps) {
             // Don't clear if we just selected
             if (justSelectedRef.current) return;
 
+            // Don't clear if clicking on a selected page block
+            const target = e.target as HTMLElement;
+            const blockOuter = target.closest?.('.bn-block-outer[data-id]');
+            const blockId = blockOuter?.getAttribute('data-id');
+            if (blockId && selectedPageBlockIdsRef.current.has(blockId)) {
+                // Clicking on selected page block - don't clear selection
+                return;
+            }
+
             // Clear selection on any click when blocks are selected
             if (selectedBlockIds.size > 0) {
                 clearBlockSelection();
+            }
+
+            // Blur editor when clicking on empty space (not on block content)
+            const mainContent = target.closest('main');
+            const inlineContent = target.closest('.bn-inline-content');
+            const blockContent = target.closest('.bn-block-content');
+            if (mainContent && !inlineContent && !blockContent && !blockOuter) {
+                // Clicked on empty space - blur editor to hide cursor
+                if (document.activeElement instanceof HTMLElement) {
+                    document.activeElement.blur();
+                }
             }
         };
 
@@ -709,8 +886,11 @@ export default function BlockNoteEditorComponent({ pageId }: EditorProps) {
     }, [selectedBlockIds, clearBlockSelection]);
 
     // Mouse drag selection for blocks
-    // Works from anywhere on page EXCEPT text content areas and interactive elements
+    // Works from anywhere in main content area EXCEPT text content areas
+    // Note: We register on document to capture clicks from ALL areas (including above editor)
     useEffect(() => {
+        console.log('[DragSelect] useEffect running, registering on document');
+
         // Track selection during drag without React re-renders
         const dragSelectedIdsRef = { current: new Set<string>() };
 
@@ -719,44 +899,69 @@ export default function BlockNoteEditorComponent({ pageId }: EditorProps) {
             if (e.button !== 0) return;
 
             const target = e.target as HTMLElement;
+            const className = typeof target.className === 'string' ? target.className : '';
+            console.log('[DragSelect] mousedown, target:', className.slice(0, 50));
 
             // Don't start if on interactive elements
-            if (target.closest('a, button, input, textarea, [role="button"], [data-radix-collection-item]')) return;
+            if (target.closest('a, button, input, textarea, [role="button"], [data-radix-collection-item]')) {
+                console.log('[DragSelect] on interactive element');
+                return;
+            }
 
             // Don't start if clicking on sidebar or header areas
-            if (target.closest('[data-sidebar], nav, header, aside')) return;
+            if (target.closest('[data-sidebar], nav, header, aside')) {
+                console.log('[DragSelect] on sidebar/header');
+                return;
+            }
 
             // Don't start if clicking on slash menu or other popups
-            if (target.closest('[data-tippy-root], [data-radix-popper-content-wrapper], .bn-suggestion-menu')) return;
+            if (target.closest('[data-tippy-root], [data-radix-popper-content-wrapper], .bn-suggestion-menu')) {
+                console.log('[DragSelect] on popup');
+                return;
+            }
 
-            // Check if inside the editor area
+            // Check if we're in the main content area (right side, not sidebar)
+            const mainContent = target.closest('main');
+            if (!mainContent) {
+                console.log('[DragSelect] not in main content');
+                return;
+            }
+
+            // Check if we're inside the editor area
             const editorRoot = target.closest('.bn-editor');
 
-            // Only allow drag selection from:
-            // 1. Outside editor entirely (page background)
-            // 2. Block drag handle area (left margin of blocks)
-            // 3. The editor container but NOT inside contenteditable
-
             if (editorRoot) {
-                // We're inside the editor - check if we're in the left margin area (drag handles)
+                // We're inside the editor - check if we're clicking on block content
                 const blockOuter = target.closest('.bn-block-outer');
                 if (blockOuter) {
                     const blockRect = blockOuter.getBoundingClientRect();
                     const clickX = e.clientX;
-                    // Allow drag from left margin (first 40px of block) - this is where drag handles are
-                    const isInLeftMargin = clickX < blockRect.left + 40;
+                    // Allow drag from left margin (first 48px of block) - this is where drag handles are
+                    const isInLeftMargin = clickX < blockRect.left + 48;
 
                     if (!isInLeftMargin) {
-                        // Clicking inside block content area - let default text selection happen
-                        return;
+                        // Check if clicking inside actual block content area
+                        const inlineContent = target.closest('.bn-inline-content');
+                        const blockContent = target.closest('.bn-block-content');
+                        if (inlineContent || blockContent) {
+                            console.log('[DragSelect] on block content, not in margin');
+                            return;
+                        }
                     }
                 }
-                // If not inside a block, we're in editor padding - allow drag
+                // If not inside a block, we're in editor padding/empty space - allow drag
             }
+            // If outside editor but inside main, allow drag (empty space above/below/left/right of blocks)
 
-            // Start drag selection
+            console.log('[DragSelect] Starting drag selection!');
+            // Start drag selection from non-text areas (margins, padding, editor background)
             isDraggingRef.current = true;
             dragStartRef.current = { x: e.clientX, y: e.clientY };
+
+            // Blur any focused element (removes cursor from editor)
+            if (document.activeElement instanceof HTMLElement) {
+                document.activeElement.blur();
+            }
 
             // Prevent text selection
             e.preventDefault();
@@ -792,7 +997,8 @@ export default function BlockNoteEditorComponent({ pageId }: EditorProps) {
 
             // Prevent any default behavior during drag
             e.preventDefault();
-            e.stopPropagation();
+            // Note: Don't call stopPropagation() here as it would block other event handlers
+            // like the drag reorder mousemove handler
 
             const start = dragStartRef.current;
             const current = { x: e.clientX, y: e.clientY };
@@ -812,7 +1018,7 @@ export default function BlockNoteEditorComponent({ pageId }: EditorProps) {
 
             // Find blocks within rectangle and store in ref (no re-render during drag)
             const rect = { left, top, right: left + width, bottom: top + height };
-            const blocksInRect = getBlocksInRect(rect);
+            const { selectedIds: blocksInRect } = getBlocksInRect(rect);
             dragSelectedIdsRef.current = blocksInRect;
 
             // Apply visual selection via direct DOM manipulation during drag
@@ -867,6 +1073,16 @@ export default function BlockNoteEditorComponent({ pageId }: EditorProps) {
             const finalSelection = dragSelectedIdsRef.current;
             if (finalSelection.size > 0) {
                 setSelectedBlockIds(new Set(finalSelection));
+                // Find which of the selected blocks are page link blocks
+                const allPageBlockIds = getPageLinkBlockIds();
+                const selectedPageBlocks = new Set<string>();
+                finalSelection.forEach(id => {
+                    if (allPageBlockIds.has(id)) {
+                        selectedPageBlocks.add(id);
+                    }
+                });
+                setSelectedPageBlockIds(selectedPageBlocks);
+                selectedPageBlockIdsRef.current = selectedPageBlocks;  // Sync ref
                 justSelectedRef.current = true;
                 setTimeout(() => {
                     justSelectedRef.current = false;
@@ -875,15 +1091,16 @@ export default function BlockNoteEditorComponent({ pageId }: EditorProps) {
             dragSelectedIdsRef.current = new Set();
         };
 
-        // Use capture phase at window level to intercept before any other handlers
-        window.addEventListener('mousedown', handleMouseDown, true);
-        window.addEventListener('mousemove', handleMouseMove, true);
-        window.addEventListener('mouseup', handleMouseUp, true);
+        // Use capture phase for all events to intercept before BlockNote/ProseMirror handlers
+        // Register mousedown on document to capture clicks from anywhere in main (including above editor)
+        document.addEventListener('mousedown', handleMouseDown, true);
+        document.addEventListener('mousemove', handleMouseMove, true);
+        document.addEventListener('mouseup', handleMouseUp, true);
 
         return () => {
-            window.removeEventListener('mousedown', handleMouseDown, true);
-            window.removeEventListener('mousemove', handleMouseMove, true);
-            window.removeEventListener('mouseup', handleMouseUp, true);
+            document.removeEventListener('mousedown', handleMouseDown, true);
+            document.removeEventListener('mousemove', handleMouseMove, true);
+            document.removeEventListener('mouseup', handleMouseUp, true);
             document.body.classList.remove('block-selecting');
             // Cleanup pointer events on unmount
             document.querySelectorAll('.bn-block-outer, .bn-inline-content, [contenteditable]').forEach((el) => {
@@ -894,7 +1111,8 @@ export default function BlockNoteEditorComponent({ pageId }: EditorProps) {
                 selectionRectRef.current = null;
             }
         };
-    }, [getBlocksInRect]);
+    }, [getBlocksInRect, getPageLinkBlockIds, editor, isLoading]);
+
 
     // AI Slash Command Item
     const insertMagicItem = useMemo(() => ({
@@ -1632,7 +1850,8 @@ export default function BlockNoteEditorComponent({ pageId }: EditorProps) {
 
             <div
                 ref={editorContainerRef}
-                className="max-w-4xl mx-auto pl-12 pr-4 md:pl-16 md:pr-12 pt-8 md:pt-16 pb-4 w-full overflow-visible"
+                className="max-w-4xl mx-auto pl-12 pr-4 md:pl-16 md:pr-12 pt-8 md:pt-16 pb-4 w-full overflow-visible flex-1"
+                style={{ minHeight: 'calc(100vh - 100px)' }}
             >
                 <Breadcrumb pageId={pageId} />
 

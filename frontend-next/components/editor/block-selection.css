@@ -75,9 +75,71 @@ body.block-selecting [contenteditable] {
   caret-color: transparent !important;
 }
 
-/* Hide placeholder when editor loses focus */
-/* BlockNote uses data-is-empty-and-focused but doesn't always update it correctly */
-.bn-editor:not(:focus-within) .bn-block-content[data-is-empty-and-focused] .bn-inline-content::before {
-  display: none !important;
-  content: none !important;
+/* Page block selected - non-editable state */
+.bn-block-outer[data-page-block-selected="true"] [contenteditable] {
+  caret-color: transparent !important;
+  cursor: default !important;
+}
+
+.bn-block-outer[data-page-block-selected="true"] .bn-inline-content {
+  user-select: none !important;
+  -webkit-user-select: none !important;
+}
+
+/* Page blocks (blocks containing /page/ links) - always hide cursor */
+/* These are navigational elements, not editable content */
+.bn-block-outer[data-is-page-block="true"] [contenteditable] {
+  caret-color: transparent !important;
+  cursor: pointer !important;
+}
+
+.bn-block-outer[data-is-page-block="true"] .bn-inline-content {
+  cursor: pointer !important;
+  caret-color: transparent !important;
+}
+
+/* Hide cursor in page block text - target the actual text node container */
+.bn-block-outer[data-is-page-block="true"] [data-content-type="paragraph"] {
+  caret-color: transparent !important;
+}
+
+.bn-block-outer[data-is-page-block="true"] .bn-block-content {
+  caret-color: transparent !important;
+}
+
+/* Block drag reorder styles */
+.block-drag-ghost {
+  position: fixed;
+  pointer-events: none;
+  z-index: 1001;
+  opacity: 0.8;
+  background-color: var(--background);
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  padding: 8px 12px;
+  font-size: 14px;
+  color: var(--foreground);
+}
+
+.dark .block-drag-ghost {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.block-drop-indicator {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background-color: #2383e2;
+  pointer-events: none;
+  z-index: 1000;
+  border-radius: 1px;
+}
+
+body.block-dragging {
+  cursor: grabbing !important;
+}
+
+body.block-dragging * {
+  cursor: grabbing !important;
 }
