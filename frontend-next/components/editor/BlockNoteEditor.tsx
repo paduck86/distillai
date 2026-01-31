@@ -13,7 +13,7 @@ import { api } from "@/lib/api";
 import { usePageStore } from "@/store/usePageStore";
 import { useThemeStore } from "@/store/useThemeStore";
 import { useShallow } from "zustand/react/shallow";
-import InlineAiPanel from "./InlineAiPanel";
+import AiIngestionModal from "./AiIngestionModal";
 import Breadcrumb from "./Breadcrumb";
 import RecorderPanel from "./RecorderPanel";
 import RecordingBar from "./RecordingBar";
@@ -367,6 +367,14 @@ export default function BlockNoteEditorComponent({ pageId }: EditorProps) {
     const isDraggingRef = useRef<boolean>(false);
     const dragStartRef = useRef<{ x: number; y: number } | null>(null);
     const selectionRectRef = useRef<HTMLDivElement | null>(null);
+
+    // Block reorder drag state
+    const isReorderingRef = useRef<boolean>(false);
+    const reorderGhostRef = useRef<HTMLDivElement | null>(null);
+    const dropIndicatorRef = useRef<HTMLDivElement | null>(null);
+    const draggedBlockIdsRef = useRef<string[]>([]);
+    const selectedBlockIdsRef = useRef<Set<string>>(new Set());  // Sync ref for reorder handler
+
     // Initialize editor
     const editor = useCreateBlockNote();
 
@@ -484,6 +492,7 @@ export default function BlockNoteEditorComponent({ pageId }: EditorProps) {
     }, [findPageById]);
 
     // Handle page block clicks - prevent cursor and handle navigation
+    // Note: This should NOT navigate if the block is selected (for reorder drag)
     useEffect(() => {
         const handleMouseDown = (e: MouseEvent) => {
             const target = e.target as HTMLElement;
@@ -497,6 +506,19 @@ export default function BlockNoteEditorComponent({ pageId }: EditorProps) {
             const pageLink = blockOuter.querySelector('a[href^="/page/"]') as HTMLAnchorElement | null;
             if (!pageLink) return;
 
+            const blockId = blockOuter.getAttribute('data-id');
+
+            // If block is selected, let the reorder handler take over - don't navigate
+            // Check using DOM class since state might not be synced yet
+            const isBlockSelected = blockOuter.classList.contains('selected') ||
+                (blockId && selectedPageBlockIdsRef.current.has(blockId));
+
+            if (isBlockSelected) {
+                // Don't navigate - let reorder handler manage this
+                e.preventDefault();
+                return;
+            }
+
             // This is a page block - prevent cursor
             e.preventDefault();
             e.stopPropagation();
@@ -504,13 +526,6 @@ export default function BlockNoteEditorComponent({ pageId }: EditorProps) {
             // Blur any focused element
             if (document.activeElement instanceof HTMLElement) {
                 document.activeElement.blur();
-            }
-
-            const blockId = blockOuter.getAttribute('data-id');
-
-            // If block is selected (multi-select mode), don't navigate
-            if (blockId && selectedPageBlockIdsRef.current.has(blockId)) {
-                return;
             }
 
             // Navigate to the page
@@ -699,6 +714,11 @@ export default function BlockNoteEditorComponent({ pageId }: EditorProps) {
         return () => observer.disconnect();
     }, [editor, isLoading]);
 
+    // Sync selectedBlockIds to ref for event handlers
+    useEffect(() => {
+        selectedBlockIdsRef.current = selectedBlockIds;
+    }, [selectedBlockIds]);
+
     // Apply block selection styles via dynamic <style> tag (survives React re-renders)
     useEffect(() => {
         const styleId = 'block-selection-styles';
@@ -709,11 +729,15 @@ export default function BlockNoteEditorComponent({ pageId }: EditorProps) {
             if (styleEl) {
                 styleEl.remove();
             }
-            // Re-enable editing on all blocks
-            document.querySelectorAll('.bn-block-outer[data-page-block-selected="true"]').forEach((el) => {
+            // Remove selected class and re-enable editing on non-page blocks only
+            document.querySelectorAll('.bn-block-outer.selected, .bn-block-outer[data-page-block-selected="true"]').forEach((el) => {
+                el.classList.remove('selected');
+                el.removeAttribute('data-block-selected');
                 el.removeAttribute('data-page-block-selected');
+                // Only re-enable contentEditable for non-page blocks
+                const isPageBlock = el.hasAttribute('data-is-page-block');
                 const contentEditable = el.querySelector('[contenteditable]');
-                if (contentEditable) {
+                if (contentEditable && !isPageBlock) {
                     (contentEditable as HTMLElement).contentEditable = 'true';
                 }
             });
@@ -766,9 +790,17 @@ export default function BlockNoteEditorComponent({ pageId }: EditorProps) {
             ${pageBlockStyles}
         `;
 
-        // Mark page blocks and disable contentEditable
+        // Mark selected blocks with class and data attribute
         document.querySelectorAll('.bn-block-outer[data-id]').forEach((el) => {
             const blockId = el.getAttribute('data-id');
+            if (blockId && selectedBlockIds.has(blockId)) {
+                el.classList.add('selected');
+                el.setAttribute('data-block-selected', 'true');
+            } else {
+                el.classList.remove('selected');
+                el.removeAttribute('data-block-selected');
+            }
+
             if (blockId && selectedPageBlockIds.has(blockId)) {
                 el.setAttribute('data-page-block-selected', 'true');
                 const contentEditable = el.querySelector('[contenteditable]');
@@ -797,6 +829,244 @@ export default function BlockNoteEditorComponent({ pageId }: EditorProps) {
         };
     }, [selectedBlockIds, selectedPageBlockIds]);
 
+    // Multi-block reorder: drag selected blocks to move them together
+    useEffect(() => {
+        if (!editor) return;
+
+        let dropTargetBlockId: string | null = null;
+        let dropPosition: 'before' | 'after' = 'after';
+
+        const handleMouseDown = (e: MouseEvent) => {
+            if (e.button !== 0) return;
+
+            // Use ref to get current selection (avoids closure issues)
+            const currentSelection = selectedBlockIdsRef.current;
+            if (currentSelection.size === 0) return;
+
+            const target = e.target as HTMLElement;
+
+            // Try to find blockOuter from click target
+            let blockOuter = target.closest('.bn-block-outer[data-id]');
+
+            // If not found directly, check if we clicked on bn-block-group which is inside bn-block-outer
+            if (!blockOuter) {
+                const blockGroup = target.closest('.bn-block-group');
+                if (blockGroup) {
+                    blockOuter = blockGroup.closest('.bn-block-outer[data-id]');
+                }
+            }
+
+            // If still not found, check if click is within bounds of any selected block
+            // This allows dragging from padding/margin areas of selected blocks
+            // Use ref to find selected blocks (DOM attribute may not be set yet)
+            if (!blockOuter) {
+                for (const selectedId of currentSelection) {
+                    const block = document.querySelector(`.bn-block-outer[data-id="${selectedId}"]`);
+                    if (block) {
+                        const rect = block.getBoundingClientRect();
+                        if (e.clientX >= rect.left && e.clientX <= rect.right &&
+                            e.clientY >= rect.top && e.clientY <= rect.bottom) {
+                            blockOuter = block;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if (!blockOuter) return;
+
+            const blockId = blockOuter.getAttribute('data-id');
+            // Check if this block is selected (using ref since DOM attribute may not be set yet)
+            const isSelected = blockId && currentSelection.has(blockId);
+            if (!blockId || !isSelected) return;
+
+            console.log('[Reorder] STARTING reorder drag!');
+            // Starting reorder drag on a selected block
+            e.preventDefault();
+            e.stopPropagation();
+
+            isReorderingRef.current = true;
+            draggedBlockIdsRef.current = Array.from(currentSelection);
+
+            // Create ghost element showing dragged blocks
+            const ghost = document.createElement('div');
+            ghost.className = 'block-reorder-ghost';
+            ghost.style.cssText = `
+                position: fixed;
+                pointer-events: none;
+                z-index: 10000;
+                background: rgba(173, 216, 230, 0.9);
+                border: 2px solid rgba(135, 206, 235, 0.8);
+                border-radius: 6px;
+                padding: 8px 12px;
+                font-size: 14px;
+                color: #333;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+                opacity: 0.95;
+            `;
+            ghost.textContent = `${currentSelection.size}개 블록 이동 중...`;
+            document.body.appendChild(ghost);
+            reorderGhostRef.current = ghost;
+
+            // Create drop indicator line
+            const indicator = document.createElement('div');
+            indicator.className = 'block-drop-indicator';
+            indicator.style.cssText = `
+                position: absolute;
+                left: 0;
+                right: 0;
+                height: 3px;
+                background: #3b82f6;
+                border-radius: 2px;
+                pointer-events: none;
+                z-index: 9999;
+                display: none;
+            `;
+            document.body.appendChild(indicator);
+            dropIndicatorRef.current = indicator;
+
+            // Position ghost at cursor
+            ghost.style.left = `${e.clientX + 10}px`;
+            ghost.style.top = `${e.clientY + 10}px`;
+        };
+
+        const handleMouseMove = (e: MouseEvent) => {
+            if (!isReorderingRef.current) return;
+
+            // Move ghost
+            if (reorderGhostRef.current) {
+                reorderGhostRef.current.style.left = `${e.clientX + 10}px`;
+                reorderGhostRef.current.style.top = `${e.clientY + 10}px`;
+            }
+
+            // Find block under cursor
+            const elementsUnderCursor = document.elementsFromPoint(e.clientX, e.clientY);
+            let targetBlock: Element | null = null;
+
+            for (const el of elementsUnderCursor) {
+                const block = el.closest('.bn-block-outer[data-id]');
+                if (block) {
+                    const blockId = block.getAttribute('data-id');
+                    // Don't target blocks being dragged
+                    if (blockId && !draggedBlockIdsRef.current.includes(blockId)) {
+                        targetBlock = block;
+                        break;
+                    }
+                }
+            }
+
+            if (targetBlock && dropIndicatorRef.current) {
+                const rect = targetBlock.getBoundingClientRect();
+                const midY = rect.top + rect.height / 2;
+
+                // Determine if drop should be before or after
+                if (e.clientY < midY) {
+                    dropPosition = 'before';
+                    dropIndicatorRef.current.style.top = `${rect.top + window.scrollY}px`;
+                } else {
+                    dropPosition = 'after';
+                    dropIndicatorRef.current.style.top = `${rect.bottom + window.scrollY}px`;
+                }
+
+                dropIndicatorRef.current.style.left = `${rect.left}px`;
+                dropIndicatorRef.current.style.width = `${rect.width}px`;
+                dropIndicatorRef.current.style.display = 'block';
+
+                dropTargetBlockId = targetBlock.getAttribute('data-id');
+            } else if (dropIndicatorRef.current) {
+                dropIndicatorRef.current.style.display = 'none';
+                dropTargetBlockId = null;
+            }
+        };
+
+        const handleMouseUp = () => {
+            if (!isReorderingRef.current) return;
+
+            isReorderingRef.current = false;
+
+            // Cleanup ghost and indicator
+            if (reorderGhostRef.current) {
+                reorderGhostRef.current.remove();
+                reorderGhostRef.current = null;
+            }
+            if (dropIndicatorRef.current) {
+                dropIndicatorRef.current.remove();
+                dropIndicatorRef.current = null;
+            }
+
+            // Perform the move
+            if (dropTargetBlockId && draggedBlockIdsRef.current.length > 0) {
+                try {
+                    const allBlocks = editor.document;
+
+                    // Get blocks to move in document order (preserve their relative order)
+                    const blockIdsSet = new Set(draggedBlockIdsRef.current);
+                    const blocksToMove = allBlocks
+                        .filter((b: any) => blockIdsSet.has(b.id))
+                        .map((b: any) => JSON.parse(JSON.stringify(b))); // Deep clone to preserve data
+
+                    if (blocksToMove.length > 0) {
+                        // Remove the blocks first
+                        editor.removeBlocks(blocksToMove.map((b: any) => ({ id: b.id })));
+
+                        // Find target block (after removal, indices may have changed)
+                        const updatedBlocks = editor.document;
+                        const targetBlock = updatedBlocks.find((b: any) => b.id === dropTargetBlockId);
+
+                        if (targetBlock) {
+                            // Insert blocks one by one to ensure all are inserted
+                            // Always insert in order, just change the reference point
+                            let referenceBlock = targetBlock;
+
+                            for (let i = 0; i < blocksToMove.length; i++) {
+                                if (i === 0) {
+                                    // First block: insert relative to the target
+                                    editor.insertBlocks([blocksToMove[i]], referenceBlock, dropPosition);
+                                } else {
+                                    // Subsequent blocks: always insert "after" the previous one
+                                    const newBlocks = editor.document;
+                                    const prevInserted = newBlocks.find((b: any) => b.id === blocksToMove[i - 1].id);
+                                    if (prevInserted) {
+                                        editor.insertBlocks([blocksToMove[i]], prevInserted, 'after');
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } catch (err) {
+                    console.error('Failed to reorder blocks:', err);
+                }
+            }
+
+            draggedBlockIdsRef.current = [];
+            dropTargetBlockId = null;
+
+            // Clear selection after move
+            setSelectedBlockIds(new Set());
+            setSelectedPageBlockIds(new Set());
+            selectedPageBlockIdsRef.current = new Set();
+        };
+
+        document.addEventListener('mousedown', handleMouseDown, true);
+        document.addEventListener('mousemove', handleMouseMove, true);
+        document.addEventListener('mouseup', handleMouseUp, true);
+
+        return () => {
+            document.removeEventListener('mousedown', handleMouseDown, true);
+            document.removeEventListener('mousemove', handleMouseMove, true);
+            document.removeEventListener('mouseup', handleMouseUp, true);
+
+            // Cleanup on unmount
+            if (reorderGhostRef.current) {
+                reorderGhostRef.current.remove();
+                reorderGhostRef.current = null;
+            }
+            if (dropIndicatorRef.current) {
+                dropIndicatorRef.current.remove();
+                dropIndicatorRef.current = null;
+            }
+        };
+    }, [editor]);  // Only depend on editor, use refs for selection state
 
     // Handle Cmd+A to select only content below title (not the title itself)
     // This uses Notion-style BLOCK selection (CSS classes) NOT text selection
@@ -840,12 +1110,11 @@ export default function BlockNoteEditorComponent({ pageId }: EditorProps) {
             // Don't clear if we just selected
             if (justSelectedRef.current) return;
 
-            // Don't clear if clicking on a selected page block
+            // Don't clear if clicking on a selected block (for reorder dragging)
             const target = e.target as HTMLElement;
             const blockOuter = target.closest?.('.bn-block-outer[data-id]');
-            const blockId = blockOuter?.getAttribute('data-id');
-            if (blockId && selectedPageBlockIdsRef.current.has(blockId)) {
-                // Clicking on selected page block - don't clear selection
+            if (blockOuter?.hasAttribute('data-block-selected')) {
+                // Clicking on selected block - don't clear selection
                 return;
             }
 
@@ -927,13 +1196,37 @@ export default function BlockNoteEditorComponent({ pageId }: EditorProps) {
                 return;
             }
 
+            // If blocks are selected, check if click is within any selected block's bounds
+            // This allows reorder handler to take over instead of starting new drag selection
+            if (selectedBlockIdsRef.current.size > 0) {
+                for (const selectedId of selectedBlockIdsRef.current) {
+                    const block = document.querySelector(`.bn-block-outer[data-id="${selectedId}"]`);
+                    if (block) {
+                        const rect = block.getBoundingClientRect();
+                        if (e.clientX >= rect.left && e.clientX <= rect.right &&
+                            e.clientY >= rect.top && e.clientY <= rect.bottom) {
+                            console.log('[DragSelect] click within selected block bounds, skipping for reorder');
+                            return;
+                        }
+                    }
+                }
+            }
+
             // Check if we're inside the editor area
             const editorRoot = target.closest('.bn-editor');
 
             if (editorRoot) {
                 // We're inside the editor - check if we're clicking on block content
-                const blockOuter = target.closest('.bn-block-outer');
+                const blockOuter = target.closest('.bn-block-outer[data-id]');
                 if (blockOuter) {
+                    // If clicking on a SELECTED block, don't start drag selection
+                    // Let the reorder handler take over
+                    const blockId = blockOuter.getAttribute('data-id');
+                    if (blockId && selectedBlockIdsRef.current.has(blockId)) {
+                        console.log('[DragSelect] on selected block, skipping for reorder');
+                        return;
+                    }
+
                     const blockRect = blockOuter.getBoundingClientRect();
                     const clickX = e.clientX;
                     // Allow drag from left margin (first 48px of block) - this is where drag handles are
@@ -1855,15 +2148,13 @@ export default function BlockNoteEditorComponent({ pageId }: EditorProps) {
             >
                 <Breadcrumb pageId={pageId} />
 
-                {/* AI Ingestion Panel (inline at block position) */}
-                {activePanel && panelBlockId && (
-                    <InlineAiPanel
-                        mode={activePanel}
-                        blockId={panelBlockId}
-                        onInsert={handlePanelInsert}
-                        onClose={closePanel}
-                    />
-                )}
+                {/* AI Ingestion Modal */}
+                <AiIngestionModal
+                    isOpen={activePanel !== null}
+                    onClose={closePanel}
+                    onInsert={handlePanelInsert}
+                    initialMode={activePanel || 'youtube'}
+                />
 
                 <BlockNoteView
                     editor={editor}

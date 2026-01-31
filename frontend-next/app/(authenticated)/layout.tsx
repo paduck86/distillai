@@ -6,6 +6,7 @@ import { Menu, X } from "lucide-react";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useUIStore } from "@/store/useUIStore";
 import Sidebar from "@/components/sidebar/Sidebar";
+import PagePreviewPopover from "@/components/editor/PagePreviewPopover";
 
 export default function DashboardLayout({
     children,
@@ -109,6 +110,9 @@ export default function DashboardLayout({
             <main className="flex-1 flex flex-col min-w-0 overflow-hidden relative pt-12 md:pt-0">
                 {children}
             </main>
+
+            {/* Page Preview Popover (for page link hover) */}
+            <PagePreviewPopover />
         </div>
     );
 }
