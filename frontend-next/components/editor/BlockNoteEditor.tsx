@@ -841,12 +841,11 @@ export default function BlockNoteEditorComponent({ pageId }: EditorProps) {
 
             // Use ref to get current selection (avoids closure issues)
             const currentSelection = selectedBlockIdsRef.current;
-            console.log('[Reorder] mousedown, selection size:', currentSelection.size);
             if (currentSelection.size === 0) return;
 
             const target = e.target as HTMLElement;
 
-            // Try to find blockOuter - may need to search up or nearby
+            // Try to find blockOuter from click target
             let blockOuter = target.closest('.bn-block-outer[data-id]');
 
             // If not found directly, check if we clicked on bn-block-group which is inside bn-block-outer
@@ -857,34 +856,25 @@ export default function BlockNoteEditorComponent({ pageId }: EditorProps) {
                 }
             }
 
-            // Still not found - check parent chain more thoroughly
+            // If still not found, check if click is within bounds of any selected block
+            // This allows dragging from padding/margin areas of selected blocks
             if (!blockOuter) {
-                let el: HTMLElement | null = target;
-                while (el && !blockOuter) {
-                    if (el.classList?.contains('bn-block-outer') && el.hasAttribute('data-id')) {
-                        blockOuter = el;
+                const selectedBlocks = document.querySelectorAll('.bn-block-outer[data-block-selected="true"]');
+                for (const block of selectedBlocks) {
+                    const rect = block.getBoundingClientRect();
+                    if (e.clientX >= rect.left && e.clientX <= rect.right &&
+                        e.clientY >= rect.top && e.clientY <= rect.bottom) {
+                        blockOuter = block;
                         break;
                     }
-                    // Check siblings
-                    const parent = el.parentElement;
-                    if (parent) {
-                        const sibling = parent.querySelector('.bn-block-outer[data-id]');
-                        if (sibling && currentSelection.has(sibling.getAttribute('data-id') || '')) {
-                            blockOuter = sibling;
-                            break;
-                        }
-                    }
-                    el = el.parentElement;
                 }
             }
 
-            console.log('[Reorder] blockOuter found:', !!blockOuter, 'target:', target.className?.toString?.().slice?.(0, 30));
             if (!blockOuter) return;
 
             const blockId = blockOuter.getAttribute('data-id');
             // Check if this block is selected (using ref since DOM attribute may not be set yet)
             const isSelected = blockId && currentSelection.has(blockId);
-            console.log('[Reorder] blockId:', blockId, 'isSelected:', isSelected);
             if (!blockId || !isSelected) return;
 
             console.log('[Reorder] STARTING reorder drag!');
