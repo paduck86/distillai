@@ -16,13 +16,13 @@ interface PagePreviewData {
 
 interface PopoverPosition {
     x: number;
-    y: number;
-    showAbove: boolean;
+    top: number | null;
+    bottom: number | null;
 }
 
 export default function PagePreviewPopover() {
     const [isVisible, setIsVisible] = useState(false);
-    const [position, setPosition] = useState<PopoverPosition>({ x: 0, y: 0, showAbove: false });
+    const [position, setPosition] = useState<PopoverPosition>({ x: 0, top: null, bottom: null });
     const [pageData, setPageData] = useState<PagePreviewData | null>(null);
     const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const hideTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -146,16 +146,27 @@ export default function PagePreviewPopover() {
             const rect = anchor.getBoundingClientRect();
             const viewportHeight = window.innerHeight;
             const popoverHeight = 220; // Approximate height
+            const gap = 8; // Gap between link and popover
 
-            // Check if there's enough space below
+            // Check if there's enough space below the link
             const spaceBelow = viewportHeight - rect.bottom;
-            const showAbove = spaceBelow < popoverHeight + 20;
+            const showAbove = spaceBelow < popoverHeight + gap;
 
-            setPosition({
-                x: rect.left,
-                y: showAbove ? rect.top : rect.bottom,
-                showAbove
-            });
+            if (showAbove) {
+                // Position above the link - use bottom positioning
+                setPosition({
+                    x: rect.left,
+                    top: null,
+                    bottom: viewportHeight - rect.top + gap
+                });
+            } else {
+                // Position below the link - use top positioning
+                setPosition({
+                    x: rect.left,
+                    top: rect.bottom + gap,
+                    bottom: null
+                });
+            }
 
             setIsVisible(true);
             initializePageData(pageId);
@@ -244,8 +255,8 @@ export default function PagePreviewPopover() {
             className="fixed z-50 w-64 min-h-[180px] rounded-xl shadow-lg border overflow-hidden"
             style={{
                 left: `${position.x}px`,
-                top: position.showAbove ? 'auto' : `${position.y + 8}px`,
-                bottom: position.showAbove ? `${window.innerHeight - position.y + 8}px` : 'auto',
+                top: position.top !== null ? `${position.top}px` : 'auto',
+                bottom: position.bottom !== null ? `${position.bottom}px` : 'auto',
                 backgroundColor: 'var(--background)',
                 borderColor: 'var(--border)',
                 boxShadow: '0 4px 24px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(0, 0, 0, 0.05)'
