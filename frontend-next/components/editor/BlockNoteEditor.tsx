@@ -858,14 +858,17 @@ export default function BlockNoteEditorComponent({ pageId }: EditorProps) {
 
             // If still not found, check if click is within bounds of any selected block
             // This allows dragging from padding/margin areas of selected blocks
+            // Use ref to find selected blocks (DOM attribute may not be set yet)
             if (!blockOuter) {
-                const selectedBlocks = document.querySelectorAll('.bn-block-outer[data-block-selected="true"]');
-                for (const block of selectedBlocks) {
-                    const rect = block.getBoundingClientRect();
-                    if (e.clientX >= rect.left && e.clientX <= rect.right &&
-                        e.clientY >= rect.top && e.clientY <= rect.bottom) {
-                        blockOuter = block;
-                        break;
+                for (const selectedId of currentSelection) {
+                    const block = document.querySelector(`.bn-block-outer[data-id="${selectedId}"]`);
+                    if (block) {
+                        const rect = block.getBoundingClientRect();
+                        if (e.clientX >= rect.left && e.clientX <= rect.right &&
+                            e.clientY >= rect.top && e.clientY <= rect.bottom) {
+                            blockOuter = block;
+                            break;
+                        }
                     }
                 }
             }
