@@ -731,11 +731,13 @@ export default function BlockNoteEditorComponent({ pageId }: EditorProps) {
 
             // Check if inside the editor area
             const editorRoot = target.closest('.bn-editor');
+            const editorContainer = editorContainerRef.current;
 
             // Only allow drag selection from:
-            // 1. Outside editor entirely (page background)
+            // 1. Outside editor entirely (page background) - but inside main content area
             // 2. Block drag handle area (left margin of blocks)
             // 3. The editor container but NOT inside contenteditable
+            // 4. Empty space below blocks (anywhere in the page content area)
 
             if (editorRoot) {
                 // We're inside the editor - check if we're in the left margin area (drag handles)
@@ -752,6 +754,16 @@ export default function BlockNoteEditorComponent({ pageId }: EditorProps) {
                     }
                 }
                 // If not inside a block, we're in editor padding - allow drag
+            } else {
+                // Not inside .bn-editor - check if we're in the main content area (not sidebar)
+                // Allow drag from anywhere in the main content area (right of sidebar)
+                const mainContent = target.closest('main');
+                if (!mainContent) {
+                    // Not in main content area - don't start drag
+                    return;
+                }
+                // We're in main content but outside editor - this is empty space below blocks
+                // Allow drag selection
             }
 
             // Start drag selection
@@ -1632,7 +1644,8 @@ export default function BlockNoteEditorComponent({ pageId }: EditorProps) {
 
             <div
                 ref={editorContainerRef}
-                className="max-w-4xl mx-auto pl-12 pr-4 md:pl-16 md:pr-12 pt-8 md:pt-16 pb-4 w-full overflow-visible"
+                className="max-w-4xl mx-auto pl-12 pr-4 md:pl-16 md:pr-12 pt-8 md:pt-16 pb-4 w-full overflow-visible flex-1"
+                style={{ minHeight: 'calc(100vh - 100px)' }}
             >
                 <Breadcrumb pageId={pageId} />
 
