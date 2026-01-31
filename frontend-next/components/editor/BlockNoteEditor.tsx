@@ -1196,6 +1196,22 @@ export default function BlockNoteEditorComponent({ pageId }: EditorProps) {
                 return;
             }
 
+            // If blocks are selected, check if click is within any selected block's bounds
+            // This allows reorder handler to take over instead of starting new drag selection
+            if (selectedBlockIdsRef.current.size > 0) {
+                for (const selectedId of selectedBlockIdsRef.current) {
+                    const block = document.querySelector(`.bn-block-outer[data-id="${selectedId}"]`);
+                    if (block) {
+                        const rect = block.getBoundingClientRect();
+                        if (e.clientX >= rect.left && e.clientX <= rect.right &&
+                            e.clientY >= rect.top && e.clientY <= rect.bottom) {
+                            console.log('[DragSelect] click within selected block bounds, skipping for reorder');
+                            return;
+                        }
+                    }
+                }
+            }
+
             // Check if we're inside the editor area
             const editorRoot = target.closest('.bn-editor');
 
