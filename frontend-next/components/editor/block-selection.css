@@ -74,3 +74,10 @@ body.block-selecting [contenteditable] {
   cursor: default !important;
   caret-color: transparent !important;
 }
+
+/* Hide placeholder when editor loses focus */
+/* BlockNote uses data-is-empty-and-focused but doesn't always update it correctly */
+.bn-editor:not(:focus-within) .bn-block-content[data-is-empty-and-focused] .bn-inline-content::before {
+  display: none !important;
+  content: none !important;
+}

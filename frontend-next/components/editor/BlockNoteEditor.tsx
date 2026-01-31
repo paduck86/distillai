@@ -543,10 +543,11 @@ export default function BlockNoteEditorComponent({ pageId }: EditorProps) {
             );
 
             if (overlaps && blockId) {
-                // Skip H1 title blocks
+                // Skip H1 title blocks - check for actual h1 element or heading with level 1
+                const hasH1Element = el.querySelector('h1') !== null;
                 const contentType = el.querySelector('[data-content-type]')?.getAttribute('data-content-type');
                 const level = el.querySelector('[data-level]')?.getAttribute('data-level');
-                const isTitle = contentType === 'heading' && level === '1';
+                const isTitle = hasH1Element || (contentType === 'heading' && level === '1');
 
                 if (!isTitle) {
                     selectedIds.add(blockId);
@@ -708,11 +709,8 @@ export default function BlockNoteEditorComponent({ pageId }: EditorProps) {
     }, [selectedBlockIds, clearBlockSelection]);
 
     // Mouse drag selection for blocks
-    // Works from anywhere in editor EXCEPT text content areas
+    // Works from anywhere on page EXCEPT text content areas and interactive elements
     useEffect(() => {
-        const editorElement = editorContainerRef.current;
-        if (!editorElement) return;
-
         // Track selection during drag without React re-renders
         const dragSelectedIdsRef = { current: new Set<string>() };
 
@@ -722,28 +720,41 @@ export default function BlockNoteEditorComponent({ pageId }: EditorProps) {
 
             const target = e.target as HTMLElement;
 
-            // Check if we're in the editor container
-            if (!editorElement.contains(target)) return;
-
             // Don't start if on interactive elements
-            if (target.closest('a, button, input, textarea')) return;
+            if (target.closest('a, button, input, textarea, [role="button"], [data-radix-collection-item]')) return;
 
-            // Check if clicking inside actual block content area (inline content within a block)
-            // Only prevent drag when clicking directly on text content, not on editor margins
-            const inlineContent = target.closest('.bn-inline-content');
-            if (inlineContent) {
-                // This is actual text content area - don't start drag selection here
-                return;
+            // Don't start if clicking on sidebar or header areas
+            if (target.closest('[data-sidebar], nav, header, aside')) return;
+
+            // Don't start if clicking on slash menu or other popups
+            if (target.closest('[data-tippy-root], [data-radix-popper-content-wrapper], .bn-suggestion-menu')) return;
+
+            // Check if inside the editor area
+            const editorRoot = target.closest('.bn-editor');
+
+            // Only allow drag selection from:
+            // 1. Outside editor entirely (page background)
+            // 2. Block drag handle area (left margin of blocks)
+            // 3. The editor container but NOT inside contenteditable
+
+            if (editorRoot) {
+                // We're inside the editor - check if we're in the left margin area (drag handles)
+                const blockOuter = target.closest('.bn-block-outer');
+                if (blockOuter) {
+                    const blockRect = blockOuter.getBoundingClientRect();
+                    const clickX = e.clientX;
+                    // Allow drag from left margin (first 40px of block) - this is where drag handles are
+                    const isInLeftMargin = clickX < blockRect.left + 40;
+
+                    if (!isInLeftMargin) {
+                        // Clicking inside block content area - let default text selection happen
+                        return;
+                    }
+                }
+                // If not inside a block, we're in editor padding - allow drag
             }
 
-            // Also check if we're inside a block's content area (but not on the editor root)
-            const blockContent = target.closest('.bn-block-content');
-            if (blockContent) {
-                // Clicking on block content - don't start drag
-                return;
-            }
-
-            // Start drag selection from non-text areas (margins, padding, editor background)
+            // Start drag selection
             isDraggingRef.current = true;
             dragStartRef.current = { x: e.clientX, y: e.clientY };
 
@@ -864,15 +875,15 @@ export default function BlockNoteEditorComponent({ pageId }: EditorProps) {
             dragSelectedIdsRef.current = new Set();
         };
 
-        // Use capture phase for all events to intercept before BlockNote/ProseMirror handlers
-        editorElement.addEventListener('mousedown', handleMouseDown, true);
-        document.addEventListener('mousemove', handleMouseMove, true);
-        document.addEventListener('mouseup', handleMouseUp, true);
+        // Use capture phase at window level to intercept before any other handlers
+        window.addEventListener('mousedown', handleMouseDown, true);
+        window.addEventListener('mousemove', handleMouseMove, true);
+        window.addEventListener('mouseup', handleMouseUp, true);
 
         return () => {
-            editorElement.removeEventListener('mousedown', handleMouseDown, true);
-            document.removeEventListener('mousemove', handleMouseMove, true);
-            document.removeEventListener('mouseup', handleMouseUp, true);
+            window.removeEventListener('mousedown', handleMouseDown, true);
+            window.removeEventListener('mousemove', handleMouseMove, true);
+            window.removeEventListener('mouseup', handleMouseUp, true);
             document.body.classList.remove('block-selecting');
             // Cleanup pointer events on unmount
             document.querySelectorAll('.bn-block-outer, .bn-inline-content, [contenteditable]').forEach((el) => {

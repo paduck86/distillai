@@ -21,7 +21,7 @@ export const api = {
     async get<T>(url: string): Promise<{ data: T }> {
         const headers = await getHeaders();
         const response = await fetch(`${API_BASE_URL}${url}`, { headers });
-        if (!response.ok) throw new Error(`GET ${url} failed`);
+        if (!response.ok) throw new Error(`GET ${url} failed with status ${response.status}`);
         return response.json();
     },
 
