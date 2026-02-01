@@ -49,7 +49,7 @@ export default function PageTree() {
 
     const handleCreateRootPage = async () => {
         try {
-            const newPageId = await createPage({});
+            const newPageId = await createPage({ title: "New page" });
             if (newPageId) {
                 router.push(`/page/${newPageId}`);
             }

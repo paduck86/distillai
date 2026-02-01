@@ -1627,7 +1627,7 @@ export default function BlockNoteEditorComponent({ pageId }: EditorProps) {
                 // Mark that we're creating a page - prevents useEffect from adding duplicate links
                 isCreatingPageRef.current = true;
 
-                const newPageId = await createPage({ parentId: pageId, title: "Untitled" });
+                const newPageId = await createPage({ parentId: pageId, title: "New page" });
 
                 if (newPageId) {
                     // Mark as recently created to prevent duplicate from useEffect
@@ -1646,7 +1646,7 @@ export default function BlockNoteEditorComponent({ pageId }: EditorProps) {
                             {
                                 type: "link",
                                 href: `/page/${newPageId}`,
-                                content: [{ type: "text", text: "Untitled", styles: {} }]
+                                content: [{ type: "text", text: "New page", styles: {} }]
                             }
                         ]
                     } as any;

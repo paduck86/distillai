@@ -64,7 +64,7 @@ export default function Sidebar() {
     }, []);
 
     const handleCreatePage = async () => {
-        const newPageId = await createPage({ title: "" });
+        const newPageId = await createPage({ title: "New page" });
         if (newPageId) {
             router.push(`/page/${newPageId}`);
         }

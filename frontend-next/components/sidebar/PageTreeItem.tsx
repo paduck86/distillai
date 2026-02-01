@@ -169,7 +169,7 @@ export default function PageTreeItem({ page, depth, index, parentId }: PageTreeI
         e.stopPropagation();
         try {
             // @ts-ignore
-            const newPageId = await createPage({ parentId: page.id });
+            const newPageId = await createPage({ parentId: page.id, title: "New page" });
             if (newPageId) {
                 router.push(`/page/${newPageId}`);
             }
