@@ -1659,18 +1659,16 @@ export default function BlockNoteEditorComponent({ pageId }: EditorProps) {
                         editor.insertBlocks([newBlock], currentBlock, "after");
                     }
 
-                    // Save immediately before navigation to ensure the link block is persisted
-                    const blocks = editor.document;
-                    const flatBlocks = flattenBlocks(blocks, pageId);
-                    try {
-                        await api.blocks.updateBatch(pageId, flatBlocks);
-                    } catch (err) {
-                        console.error("Failed to save before navigation:", err);
-                    }
-
-                    // Navigate to the new page
+                    // Navigate to the new page immediately for better UX
                     selectPage(newPageId);
                     router.push(`/page/${newPageId}`);
+
+                    // Save in background - link block will be persisted after navigation
+                    const blocks = editor.document;
+                    const flatBlocks = flattenBlocks(blocks, pageId);
+                    api.blocks.updateBatch(pageId, flatBlocks).catch(err => {
+                        console.error("Failed to save after navigation:", err);
+                    });
                 }
             } catch (error) {
                 console.error("Failed to create page:", error);
