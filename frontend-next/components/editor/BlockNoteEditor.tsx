@@ -880,7 +880,6 @@ export default function BlockNoteEditorComponent({ pageId }: EditorProps) {
             const isSelected = blockId && currentSelection.has(blockId);
             if (!blockId || !isSelected) return;
 
-            console.log('[Reorder] STARTING reorder drag!');
             // Starting reorder drag on a selected block
             e.preventDefault();
             e.stopPropagation();
@@ -1154,11 +1153,9 @@ export default function BlockNoteEditorComponent({ pageId }: EditorProps) {
                     if (e.key === 'y' || (e.key === 'z' && e.shiftKey)) {
                         // Redo: Cmd+Y or Cmd+Shift+Z
                         editor.redo();
-                        console.log('Redo executed');
                     } else {
                         // Undo: Cmd+Z
                         editor.undo();
-                        console.log('Undo executed');
                     }
                 }
                 return;
@@ -1191,25 +1188,18 @@ export default function BlockNoteEditorComponent({ pageId }: EditorProps) {
                         try {
                             // Delete all existing blocks in one operation
                             editor.removeBlocks(existingBlocks);
-                            console.log(`Deleted ${existingBlocks.length} blocks`);
-                        } catch (err) {
+                        } catch {
                             // If batch delete fails, try deleting one by one
-                            console.warn('Batch delete failed, trying individual deletion:', err);
-                            let deletedCount = 0;
                             for (const block of existingBlocks) {
                                 try {
                                     // Re-verify block exists before each deletion
                                     const stillExists = editor.getBlock(block.id);
                                     if (stillExists) {
                                         editor.removeBlocks([stillExists]);
-                                        deletedCount++;
                                     }
                                 } catch {
                                     // Block no longer exists, skip
                                 }
-                            }
-                            if (deletedCount > 0) {
-                                console.log(`Deleted ${deletedCount} blocks individually`);
                             }
                         }
                     }
@@ -1236,8 +1226,6 @@ export default function BlockNoteEditorComponent({ pageId }: EditorProps) {
     // Works from anywhere in main content area EXCEPT text content areas
     // Note: We register on document to capture clicks from ALL areas (including above editor)
     useEffect(() => {
-        console.log('[DragSelect] useEffect running, registering on document');
-
         // Track selection during drag without React re-renders
         const dragSelectedIdsRef = { current: new Set<string>() };
 
@@ -1246,31 +1234,25 @@ export default function BlockNoteEditorComponent({ pageId }: EditorProps) {
             if (e.button !== 0) return;
 
             const target = e.target as HTMLElement;
-            const className = typeof target.className === 'string' ? target.className : '';
-            console.log('[DragSelect] mousedown, target:', className.slice(0, 50));
 
             // Don't start if on interactive elements
             if (target.closest('a, button, input, textarea, [role="button"], [data-radix-collection-item]')) {
-                console.log('[DragSelect] on interactive element');
                 return;
             }
 
             // Don't start if clicking on sidebar or header areas
             if (target.closest('[data-sidebar], nav, header, aside')) {
-                console.log('[DragSelect] on sidebar/header');
                 return;
             }
 
             // Don't start if clicking on slash menu or other popups
             if (target.closest('[data-tippy-root], [data-radix-popper-content-wrapper], .bn-suggestion-menu')) {
-                console.log('[DragSelect] on popup');
                 return;
             }
 
             // Check if we're in the main content area (right side, not sidebar)
             const mainContent = target.closest('main');
             if (!mainContent) {
-                console.log('[DragSelect] not in main content');
                 return;
             }
 
@@ -1283,7 +1265,6 @@ export default function BlockNoteEditorComponent({ pageId }: EditorProps) {
                         const rect = block.getBoundingClientRect();
                         if (e.clientX >= rect.left && e.clientX <= rect.right &&
                             e.clientY >= rect.top && e.clientY <= rect.bottom) {
-                            console.log('[DragSelect] click within selected block bounds, skipping for reorder');
                             return;
                         }
                     }
@@ -1301,30 +1282,36 @@ export default function BlockNoteEditorComponent({ pageId }: EditorProps) {
                     // Let the reorder handler take over
                     const blockId = blockOuter.getAttribute('data-id');
                     if (blockId && selectedBlockIdsRef.current.has(blockId)) {
-                        console.log('[DragSelect] on selected block, skipping for reorder');
                         return;
                     }
 
+                    // Check if this is a page block (contains /page/ link)
+                    const isPageBlock = !!blockOuter.querySelector('a[href^="/page/"]');
+
+                    // Check if clicking inside actual block content area
+                    const inlineContent = target.closest('.bn-inline-content');
+                    const blockContent = target.closest('.bn-block-content');
+
+                    // For NON-page blocks: if clicking on content, always allow editing
+                    // This ensures cursor appears even for short text like "ㅁ"
+                    if (!isPageBlock && (inlineContent || blockContent)) {
+                        return;
+                    }
+
+                    // For page blocks or empty areas: use margin-based logic for drag selection
                     const blockRect = blockOuter.getBoundingClientRect();
                     const clickX = e.clientX;
                     // Allow drag from left margin (first 48px of block) - this is where drag handles are
                     const isInLeftMargin = clickX < blockRect.left + 48;
 
-                    if (!isInLeftMargin) {
-                        // Check if clicking inside actual block content area
-                        const inlineContent = target.closest('.bn-inline-content');
-                        const blockContent = target.closest('.bn-block-content');
-                        if (inlineContent || blockContent) {
-                            console.log('[DragSelect] on block content, not in margin');
-                            return;
-                        }
+                    if (!isInLeftMargin && (inlineContent || blockContent)) {
+                        return;
                     }
                 }
                 // If not inside a block, we're in editor padding/empty space - allow drag
             }
             // If outside editor but inside main, allow drag (empty space above/below/left/right of blocks)
 
-            console.log('[DragSelect] Starting drag selection!');
             // Start drag selection from non-text areas (margins, padding, editor background)
             isDraggingRef.current = true;
             dragStartRef.current = { x: e.clientX, y: e.clientY };

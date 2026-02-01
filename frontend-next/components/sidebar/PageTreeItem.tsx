@@ -322,12 +322,9 @@ export default function PageTreeItem({ page, depth, index, parentId }: PageTreeI
                         }}
                         onDelete={async () => {
                             try {
-                                console.log('[PageTreeItem] Deleting page:', page.id);
                                 await deletePage(page.id);
-                                console.log('[PageTreeItem] Page deleted:', page.id);
                                 toast.success("페이지가 삭제되었습니다");
-                            } catch (err) {
-                                console.error('[PageTreeItem] Delete failed:', err);
+                            } catch {
                                 toast.error("페이지 삭제에 실패했습니다");
                             }
                         }}
