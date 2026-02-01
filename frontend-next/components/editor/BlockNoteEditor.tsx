@@ -2300,8 +2300,11 @@ export default function BlockNoteEditorComponent({ pageId }: EditorProps) {
     const isEmptyBlock = useCallback((block: any): boolean => {
         if (block.type !== "paragraph") return false;
         if (!Array.isArray(block.content) || block.content.length === 0) return true;
-        const hasText = block.content.some((c: any) => c.text && c.text.trim());
-        return !hasText;
+        // Check for text content OR links (page blocks have links)
+        const hasContent = block.content.some((c: any) =>
+            (c.text && c.text.trim()) || c.type === "link"
+        );
+        return !hasContent;
     }, []);
 
     // Helper to extract child page IDs in order from blocks
