@@ -1305,19 +1305,51 @@ export default function BlockNoteEditorComponent({ pageId }: EditorProps) {
                         return;
                     }
 
+                    // Check if this is a page block (contains /page/ link)
+                    const isPageBlock = !!blockOuter.querySelector('a[href^="/page/"]');
+
+                    // Check if clicking inside actual block content area
+                    const inlineContent = target.closest('.bn-inline-content');
+                    const blockContent = target.closest('.bn-block-content');
+
+                    // For NON-page blocks: always allow editing when clicking inside the block
+                    // This ensures cursor appears for:
+                    // - Short text like "ㅁ" or "ㅍ" (regardless of click position)
+                    // - Empty blocks (no inlineContent but still editable)
+                    // - Heading/title blocks (H1, H2, H3)
+                    if (!isPageBlock) {
+                        console.log('[DragSelect] on non-page block, allowing text editing');
+
+                        // Force cursor to clicked block using BlockNote API
+                        // This fixes the issue where clicking on heading/empty blocks
+                        // doesn't place the cursor correctly
+                        const blockId = blockOuter.getAttribute('data-id');
+                        if (blockId && editor) {
+                            // Use setTimeout to let the default click handling finish first
+                            setTimeout(() => {
+                                try {
+                                    const block = editor.getBlock(blockId);
+                                    if (block) {
+                                        editor.setTextCursorPosition(blockId, 'end');
+                                        console.log('[DragSelect] Forced cursor to block:', blockId);
+                                    }
+                                } catch (err) {
+                                    // Ignore errors - block might not exist or be editable
+                                }
+                            }, 0);
+                        }
+                        return;
+                    }
+
+                    // For page blocks: use margin-based logic
+                    // Only start drag selection from left margin (first 48px)
                     const blockRect = blockOuter.getBoundingClientRect();
                     const clickX = e.clientX;
-                    // Allow drag from left margin (first 48px of block) - this is where drag handles are
                     const isInLeftMargin = clickX < blockRect.left + 48;
 
-                    if (!isInLeftMargin) {
-                        // Check if clicking inside actual block content area
-                        const inlineContent = target.closest('.bn-inline-content');
-                        const blockContent = target.closest('.bn-block-content');
-                        if (inlineContent || blockContent) {
-                            console.log('[DragSelect] on block content, not in margin');
-                            return;
-                        }
+                    if (!isInLeftMargin && (inlineContent || blockContent)) {
+                        console.log('[DragSelect] on page block content, not in margin');
+                        return;
                     }
                 }
                 // If not inside a block, we're in editor padding/empty space - allow drag
@@ -2285,6 +2317,7 @@ export default function BlockNoteEditorComponent({ pageId }: EditorProps) {
                     theme={theme}
                     onChange={onChange}
                     slashMenu={false}
+                    sideMenu={false}
                 >
                     <SuggestionMenuController
                         triggerCharacter={"/"}
