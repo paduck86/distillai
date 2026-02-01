@@ -1,5 +1,5 @@
 "use client";
-
+// Force rebuild - page preview popover with instant hide on hover out
 import { useState, useEffect, useCallback, useRef } from "react";
 import { FileText } from "lucide-react";
 import { api } from "@/lib/api";
@@ -198,14 +198,12 @@ export default function PagePreviewPopover() {
             hoverTimeoutRef.current = null;
         }
 
-        // Delay before hiding (to allow moving to popover)
-        hideTimeoutRef.current = setTimeout(() => {
-            if (!isHoveringPopoverRef.current) {
-                setIsVisible(false);
-                currentPageIdRef.current = null;
-                setPageData(null);
-            }
-        }, 150);
+        // Hide immediately when leaving page link
+        if (!isHoveringPopoverRef.current) {
+            setIsVisible(false);
+            currentPageIdRef.current = null;
+            setPageData(null);
+        }
     }, []);
 
     // Handle popover mouse enter/leave
@@ -219,12 +217,10 @@ export default function PagePreviewPopover() {
 
     const handlePopoverMouseLeave = useCallback(() => {
         isHoveringPopoverRef.current = false;
-        // Immediately hide when leaving popover (shorter delay)
-        hideTimeoutRef.current = setTimeout(() => {
-            setIsVisible(false);
-            currentPageIdRef.current = null;
-            setPageData(null);
-        }, 100);
+        // Hide immediately when leaving popover
+        setIsVisible(false);
+        currentPageIdRef.current = null;
+        setPageData(null);
     }, []);
 
     // Set up event listeners
