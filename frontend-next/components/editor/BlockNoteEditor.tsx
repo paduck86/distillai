@@ -670,36 +670,59 @@ export default function BlockNoteEditorComponent({ pageId }: EditorProps) {
     // Mark page blocks with data attribute and disable contentEditable
     // This prevents cursor from appearing in page link blocks
     useEffect(() => {
-        if (!editor || isLoading) return;
+        if (!editor) return;
+
+        let isMarking = false;
 
         // Function to mark all page blocks and disable editing
         const markPageBlocks = () => {
+            if (isMarking) return;
+            isMarking = true;
+
+            let markedCount = 0;
             document.querySelectorAll('.bn-block-outer[data-id]').forEach((el) => {
                 const hasPageLink = el.querySelector('a[href^="/page/"]');
-                const contentEditable = el.querySelector('[contenteditable]') as HTMLElement | null;
+                const currentAttr = el.getAttribute('data-is-page-block');
 
                 if (hasPageLink) {
-                    el.setAttribute('data-is-page-block', 'true');
-                    // Disable contentEditable to prevent cursor
-                    if (contentEditable && contentEditable.contentEditable !== 'false') {
-                        contentEditable.contentEditable = 'false';
+                    // Only set if not already set
+                    if (currentAttr !== 'true') {
+                        el.setAttribute('data-is-page-block', 'true');
+                        markedCount++;
                     }
                 } else {
-                    el.removeAttribute('data-is-page-block');
-                    // Re-enable contentEditable for non-page blocks
-                    if (contentEditable && contentEditable.contentEditable === 'false') {
-                        contentEditable.contentEditable = 'true';
+                    // Only remove if currently set
+                    if (currentAttr === 'true') {
+                        el.removeAttribute('data-is-page-block');
                     }
                 }
+            });
+            if (markedCount > 0) {
+                console.log('[PageBlock] Marked', markedCount, 'page blocks');
+            }
+
+            // Reset after a tick to allow next marking
+            requestAnimationFrame(() => {
+                isMarking = false;
             });
         };
 
         // Initial marking with delay to ensure DOM is ready
         setTimeout(markPageBlocks, 100);
+        // Also mark after a longer delay in case of slow render
+        setTimeout(markPageBlocks, 500);
+        setTimeout(markPageBlocks, 1000);
 
         // Observe DOM changes to keep attributes updated
-        const observer = new MutationObserver(() => {
-            requestAnimationFrame(markPageBlocks);
+        // Only observe childList changes, not attribute changes (to avoid infinite loops)
+        const observer = new MutationObserver((mutations) => {
+            // Check if this is an attribute change we made
+            const isOurChange = mutations.every(m =>
+                m.type === 'attributes' && m.attributeName === 'data-is-page-block'
+            );
+            if (!isOurChange) {
+                requestAnimationFrame(markPageBlocks);
+            }
         });
 
         const editorEl = document.querySelector('.bn-editor');
@@ -707,12 +730,14 @@ export default function BlockNoteEditorComponent({ pageId }: EditorProps) {
             observer.observe(editorEl, {
                 childList: true,
                 subtree: true,
-                characterData: true
+                characterData: true,
+                attributes: true,
+                attributeFilter: ['data-is-page-block']
             });
         }
 
         return () => observer.disconnect();
-    }, [editor, isLoading]);
+    }, [editor]);
 
     // Sync selectedBlockIds to ref for event handlers
     useEffect(() => {
@@ -1161,7 +1186,157 @@ export default function BlockNoteEditorComponent({ pageId }: EditorProps) {
                 return;
             }
 
-            // Handle Delete/Backspace to remove selected blocks
+            // Handle Delete/Backspace to remove selected blocks or cross-block text selection
+            if (e.key === 'Delete' || e.key === 'Backspace') {
+                const textSelection = window.getSelection();
+                const hasTextSelection = textSelection && !textSelection.isCollapsed && textSelection.toString().length > 0;
+
+                // Helper to find block element from a DOM node
+                const findBlockElement = (node: Node | null): HTMLElement | null => {
+                    if (!node) return null;
+                    const el = node.nodeType === Node.ELEMENT_NODE ? node as HTMLElement : node.parentElement;
+                    return el?.closest('.bn-block-outer[data-id]') as HTMLElement | null;
+                };
+
+                // Check for cross-block text selection
+                if (hasTextSelection && textSelection.rangeCount > 0 && selectedBlockIds.size === 0) {
+                    const range = textSelection.getRangeAt(0);
+                    const startBlockEl = findBlockElement(range.startContainer);
+                    const endBlockEl = findBlockElement(range.endContainer);
+
+                    // Cross-block selection detected
+                    if (startBlockEl && endBlockEl && startBlockEl !== endBlockEl) {
+                        e.preventDefault();
+                        e.stopPropagation();
+
+                        const startBlockId = startBlockEl.getAttribute('data-id');
+                        const endBlockId = endBlockEl.getAttribute('data-id');
+
+                        if (startBlockId && endBlockId && editor) {
+                            try {
+                                // Get all blocks in document order
+                                const allBlocks = editor.document;
+                                const blockOrder: string[] = [];
+                                const collectIds = (blocks: any[]) => {
+                                    blocks.forEach((b: any) => {
+                                        blockOrder.push(b.id);
+                                        if (b.children) collectIds(b.children);
+                                    });
+                                };
+                                collectIds(allBlocks);
+
+                                const startIdx = blockOrder.indexOf(startBlockId);
+                                const endIdx = blockOrder.indexOf(endBlockId);
+
+                                if (startIdx !== -1 && endIdx !== -1) {
+                                    const minIdx = Math.min(startIdx, endIdx);
+                                    const maxIdx = Math.max(startIdx, endIdx);
+
+                                    // Get blocks to process
+                                    const firstBlockId = blockOrder[minIdx];
+                                    const lastBlockId = blockOrder[maxIdx];
+                                    const middleBlockIds = blockOrder.slice(minIdx + 1, maxIdx);
+
+                                    // Get the text content before and after selection
+                                    const firstBlock = editor.getBlock(firstBlockId);
+                                    const lastBlock = editor.getBlock(lastBlockId);
+
+                                    if (firstBlock && lastBlock) {
+                                        // Extract text from blocks
+                                        const extractText = (block: any): string => {
+                                            if (!block.content) return '';
+                                            return block.content.map((c: any) => {
+                                                if (c.type === 'text') return c.text || '';
+                                                if (c.type === 'link') {
+                                                    return c.content?.map((t: any) => t.text || '').join('') || '';
+                                                }
+                                                return '';
+                                            }).join('');
+                                        };
+
+                                        const firstBlockText = extractText(firstBlock);
+                                        const lastBlockText = extractText(lastBlock);
+
+                                        // Find cursor positions in text
+                                        // For first block: keep text before selection
+                                        // For last block: keep text after selection
+                                        const getTextOffset = (container: Node, offset: number, blockEl: HTMLElement): number => {
+                                            const walker = document.createTreeWalker(
+                                                blockEl.querySelector('.bn-inline-content') || blockEl,
+                                                NodeFilter.SHOW_TEXT
+                                            );
+                                            let textOffset = 0;
+                                            let node: Node | null;
+                                            while ((node = walker.nextNode())) {
+                                                if (node === container) {
+                                                    return textOffset + offset;
+                                                }
+                                                textOffset += (node.textContent?.length || 0);
+                                            }
+                                            return offset;
+                                        };
+
+                                        const isStartFirst = startIdx <= endIdx;
+                                        const firstBlockEl2 = isStartFirst ? startBlockEl : endBlockEl;
+                                        const lastBlockEl2 = isStartFirst ? endBlockEl : startBlockEl;
+
+                                        const keepFromFirst = isStartFirst
+                                            ? getTextOffset(range.startContainer, range.startOffset, firstBlockEl2)
+                                            : getTextOffset(range.endContainer, range.endOffset, firstBlockEl2);
+
+                                        const keepFromLast = isStartFirst
+                                            ? getTextOffset(range.endContainer, range.endOffset, lastBlockEl2)
+                                            : getTextOffset(range.startContainer, range.startOffset, lastBlockEl2);
+
+                                        const textBeforeSelection = firstBlockText.substring(0, keepFromFirst);
+                                        const textAfterSelection = lastBlockText.substring(keepFromLast);
+
+                                        // Merge text: text before + text after
+                                        const mergedText = textBeforeSelection + textAfterSelection;
+
+                                        // Update first block with merged content
+                                        editor.updateBlock(firstBlock, {
+                                            content: mergedText || undefined
+                                        });
+
+                                        // Delete middle blocks
+                                        for (const midId of middleBlockIds) {
+                                            try {
+                                                const midBlock = editor.getBlock(midId);
+                                                if (midBlock) {
+                                                    editor.removeBlocks([midBlock]);
+                                                }
+                                            } catch {
+                                                // Block might not exist
+                                            }
+                                        }
+
+                                        // Delete last block
+                                        try {
+                                            const lastBlockRefresh = editor.getBlock(lastBlockId);
+                                            if (lastBlockRefresh) {
+                                                editor.removeBlocks([lastBlockRefresh]);
+                                            }
+                                        } catch {
+                                            // Block might not exist
+                                        }
+
+                                        // Clear selection
+                                        textSelection.removeAllRanges();
+                                    }
+                                }
+                            } catch (err) {
+                                console.error('[Cross-block delete error]', err);
+                            }
+                        }
+                        return;
+                    }
+
+                    // Single block text selection - let native handling work
+                    return;
+                }
+            }
+
             if (selectedBlockIds.size > 0 && (e.key === 'Delete' || e.key === 'Backspace')) {
                 e.preventDefault();
                 e.stopPropagation();
@@ -1292,36 +1467,25 @@ export default function BlockNoteEditorComponent({ pageId }: EditorProps) {
                     const inlineContent = target.closest('.bn-inline-content');
                     const blockContent = target.closest('.bn-block-content');
 
-                    // For NON-page blocks: always allow editing when clicking inside the block
-                    // This ensures cursor appears for:
-                    // - Short text like "ㅁ" or "ㅍ" (regardless of click position)
-                    // - Empty blocks (no inlineContent but still editable)
-                    // - Heading/title blocks (H1, H2, H3)
-                    if (!isPageBlock) {
-                        // Force cursor to clicked block using BlockNote API
-                        // This fixes the issue where clicking on heading/empty blocks
-                        // doesn't place the cursor correctly
-                        const blockId = blockOuter.getAttribute('data-id');
-                        if (blockId && editor) {
-                            // Use setTimeout to let the default click handling finish first
-                            setTimeout(() => {
-                                try {
-                                    const block = editor.getBlock(blockId);
-                                    if (block) {
-                                        editor.setTextCursorPosition(blockId, 'end');
-                                    }
-                                } catch {
-                                    // Ignore errors - block might not exist or be editable
-                                }
-                            }, 0);
-                        }
+                    console.log('[MouseDown Debug]', {
+                        isPageBlock,
+                        hasInlineContent: !!inlineContent,
+                        hasBlockContent: !!blockContent,
+                        targetTag: target.tagName,
+                        targetClass: target.className
+                    });
+
+                    // For NON-page blocks: if clicking on content, always allow editing/text selection
+                    // This ensures cursor appears and text selection works
+                    if (!isPageBlock && (inlineContent || blockContent)) {
+                        console.log('[MouseDown Debug] Allowing text selection - not a page block');
                         return;
                     }
 
-                    // For page blocks: use margin-based logic
-                    // Only start drag selection from left margin (first 48px)
+                    // For page blocks or empty areas: use margin-based logic for drag selection
                     const blockRect = blockOuter.getBoundingClientRect();
                     const clickX = e.clientX;
+                    // Allow drag from left margin (first 48px of block) - this is where drag handles are
                     const isInLeftMargin = clickX < blockRect.left + 48;
 
                     if (!isInLeftMargin && (inlineContent || blockContent)) {
@@ -1602,7 +1766,7 @@ export default function BlockNoteEditorComponent({ pageId }: EditorProps) {
                 // Mark that we're creating a page - prevents useEffect from adding duplicate links
                 isCreatingPageRef.current = true;
 
-                const newPageId = await createPage({ parentId: pageId, title: "New page" });
+                const newPageId = await createPage({ parentId: pageId, title: "Untitled" });
 
                 if (newPageId) {
                     // Mark as recently created to prevent duplicate from useEffect
@@ -1621,7 +1785,7 @@ export default function BlockNoteEditorComponent({ pageId }: EditorProps) {
                             {
                                 type: "link",
                                 href: `/page/${newPageId}`,
-                                content: [{ type: "text", text: "New page", styles: {} }]
+                                content: [{ type: "text", text: "Untitled", styles: {} }]
                             }
                         ]
                     } as any;
@@ -1634,16 +1798,18 @@ export default function BlockNoteEditorComponent({ pageId }: EditorProps) {
                         editor.insertBlocks([newBlock], currentBlock, "after");
                     }
 
-                    // Navigate to the new page immediately for better UX
-                    selectPage(newPageId);
-                    router.push(`/page/${newPageId}`);
-
-                    // Save in background - link block will be persisted after navigation
+                    // Save immediately before navigation to ensure the link block is persisted
                     const blocks = editor.document;
                     const flatBlocks = flattenBlocks(blocks, pageId);
-                    api.blocks.updateBatch(pageId, flatBlocks).catch(err => {
-                        console.error("Failed to save after navigation:", err);
-                    });
+                    try {
+                        await api.blocks.updateBatch(pageId, flatBlocks);
+                    } catch (err) {
+                        console.error("Failed to save before navigation:", err);
+                    }
+
+                    // Navigate to the new page
+                    selectPage(newPageId);
+                    router.push(`/page/${newPageId}`);
                 }
             } catch (error) {
                 console.error("Failed to create page:", error);
@@ -2290,7 +2456,6 @@ export default function BlockNoteEditorComponent({ pageId }: EditorProps) {
                     theme={theme}
                     onChange={onChange}
                     slashMenu={false}
-                    sideMenu={false}
                 >
                     <SuggestionMenuController
                         triggerCharacter={"/"}

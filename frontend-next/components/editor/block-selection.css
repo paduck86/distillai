@@ -88,23 +88,47 @@ body.block-selecting [contenteditable] {
 
 /* Page blocks (blocks containing /page/ links) - always hide cursor */
 /* These are navigational elements, not editable content */
-.bn-block-outer[data-is-page-block="true"] [contenteditable] {
-  caret-color: transparent !important;
-  cursor: pointer !important;
+/* Also prevent text selection so drag selection skips over them */
+/* Using :has() selector to target blocks containing page links without data attributes */
+.bn-block-outer:has(a[href^="/page/"]) {
+  user-select: none !important;
+  -webkit-user-select: none !important;
 }
 
-.bn-block-outer[data-is-page-block="true"] .bn-inline-content {
+.bn-block-outer:has(a[href^="/page/"]) [contenteditable] {
+  caret-color: transparent !important;
+  cursor: pointer !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
+}
+
+.bn-block-outer:has(a[href^="/page/"]) .bn-inline-content {
   cursor: pointer !important;
   caret-color: transparent !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
 }
 
 /* Hide cursor in page block text - target the actual text node container */
-.bn-block-outer[data-is-page-block="true"] [data-content-type="paragraph"] {
+.bn-block-outer:has(a[href^="/page/"]) [data-content-type="paragraph"] {
   caret-color: transparent !important;
 }
 
-.bn-block-outer[data-is-page-block="true"] .bn-block-content {
+.bn-block-outer:has(a[href^="/page/"]) .bn-block-content {
   caret-color: transparent !important;
+}
+
+/* Fallback for data attribute if set */
+.bn-block-outer[data-is-page-block="true"] {
+  user-select: none !important;
+  -webkit-user-select: none !important;
+}
+
+.bn-block-outer[data-is-page-block="true"] [contenteditable] {
+  caret-color: transparent !important;
+  cursor: pointer !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
 }
 
 /* Block drag reorder styles */
