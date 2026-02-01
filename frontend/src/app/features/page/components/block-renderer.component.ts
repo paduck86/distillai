@@ -699,6 +699,15 @@ import { TableEditorComponent } from './table-editor.component';
       color: rgb(161 161 170);
       pointer-events: none;
     }
+
+    /* Ensure caret (cursor) is visible */
+    [contenteditable] {
+      caret-color: #18181b; /* zinc-900 for light mode */
+    }
+
+    :host-context(.dark) [contenteditable] {
+      caret-color: #fafafa; /* zinc-50 for dark mode */
+    }
   `]
 })
 export class BlockRendererComponent implements AfterViewInit, OnChanges {
