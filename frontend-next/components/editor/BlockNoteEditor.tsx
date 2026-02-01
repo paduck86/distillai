@@ -1136,22 +1136,82 @@ export default function BlockNoteEditorComponent({ pageId }: EditorProps) {
         };
 
         const handleKeyPress = (e: KeyboardEvent) => {
-            // Don't clear on Cmd+A itself
+            // Don't interfere with Cmd+A (select all)
             if ((e.metaKey || e.ctrlKey) && e.key === 'a') return;
+
+            // Handle Cmd+Z (undo) / Cmd+Shift+Z or Cmd+Y (redo) directly
+            // Use BlockNote's native undo/redo API
+            if ((e.metaKey || e.ctrlKey) && (e.key === 'z' || e.key === 'y')) {
+                if (editor) {
+                    e.preventDefault();
+                    e.stopPropagation();
+
+                    // Clear block selection
+                    if (selectedBlockIds.size > 0) {
+                        clearBlockSelection();
+                    }
+
+                    if (e.key === 'y' || (e.key === 'z' && e.shiftKey)) {
+                        // Redo: Cmd+Y or Cmd+Shift+Z
+                        editor.redo();
+                        console.log('Redo executed');
+                    } else {
+                        // Undo: Cmd+Z
+                        editor.undo();
+                        console.log('Undo executed');
+                    }
+                }
+                return;
+            }
 
             // Handle Delete/Backspace to remove selected blocks
             if (selectedBlockIds.size > 0 && (e.key === 'Delete' || e.key === 'Backspace')) {
                 e.preventDefault();
                 e.stopPropagation();
 
-                // Delete selected blocks
-                const blocksToDelete = Array.from(selectedBlockIds).map(id => ({ id }));
-                if (blocksToDelete.length > 0 && editor) {
-                    try {
-                        editor.removeBlocks(blocksToDelete);
-                        clearBlockSelection();
-                    } catch (err) {
-                        console.error('Failed to delete blocks:', err);
+                // Delete selected blocks - verify existence immediately before deletion
+                if (editor) {
+                    const idsToDelete = Array.from(selectedBlockIds);
+
+                    // Clear selection first to prevent any race conditions
+                    clearBlockSelection();
+
+                    // Filter to only blocks that exist RIGHT NOW
+                    const existingBlocks = idsToDelete
+                        .map(id => {
+                            try {
+                                return editor.getBlock(id);
+                            } catch {
+                                return null;
+                            }
+                        })
+                        .filter((block): block is NonNullable<typeof block> => block !== null && block !== undefined);
+
+                    if (existingBlocks.length > 0) {
+                        try {
+                            // Delete all existing blocks in one operation
+                            editor.removeBlocks(existingBlocks);
+                            console.log(`Deleted ${existingBlocks.length} blocks`);
+                        } catch (err) {
+                            // If batch delete fails, try deleting one by one
+                            console.warn('Batch delete failed, trying individual deletion:', err);
+                            let deletedCount = 0;
+                            for (const block of existingBlocks) {
+                                try {
+                                    // Re-verify block exists before each deletion
+                                    const stillExists = editor.getBlock(block.id);
+                                    if (stillExists) {
+                                        editor.removeBlocks([stillExists]);
+                                        deletedCount++;
+                                    }
+                                } catch {
+                                    // Block no longer exists, skip
+                                }
+                            }
+                            if (deletedCount > 0) {
+                                console.log(`Deleted ${deletedCount} blocks individually`);
+                            }
+                        }
                     }
                 }
                 return;
