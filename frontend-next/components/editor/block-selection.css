@@ -88,14 +88,24 @@ body.block-selecting [contenteditable] {
 
 /* Page blocks (blocks containing /page/ links) - always hide cursor */
 /* These are navigational elements, not editable content */
+/* Also prevent text selection so drag selection skips over them */
+.bn-block-outer[data-is-page-block="true"] {
+  user-select: none !important;
+  -webkit-user-select: none !important;
+}
+
 .bn-block-outer[data-is-page-block="true"] [contenteditable] {
   caret-color: transparent !important;
   cursor: pointer !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
 }
 
 .bn-block-outer[data-is-page-block="true"] .bn-inline-content {
   cursor: pointer !important;
   caret-color: transparent !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
 }
 
 /* Hide cursor in page block text - target the actual text node container */

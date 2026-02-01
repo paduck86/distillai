@@ -564,12 +564,23 @@ export default function BlockNoteEditorComponent({ pageId }: EditorProps) {
         selectedPageBlockIdsRef.current = new Set();
     }, []);
 
+    // Get the first H1 block ID (page title) - used to exclude it from selection
+    const getFirstH1BlockId = useCallback((): string | null => {
+        const firstH1 = document.querySelector('.bn-block-outer[data-id] h1');
+        if (firstH1) {
+            const blockOuter = firstH1.closest('.bn-block-outer[data-id]');
+            return blockOuter?.getAttribute('data-id') || null;
+        }
+        return null;
+    }, []);
+
     // Get blocks within a rectangle area (returns both selected IDs and page block IDs)
     const getBlocksInRect = useCallback((rect: { left: number; top: number; right: number; bottom: number }): { selectedIds: Set<string>; pageBlockIds: Set<string> } => {
         const blockElements = document.querySelectorAll('.bn-block-outer[data-id]');
         const selectedIds = new Set<string>();
         const pageBlockIdsInRect = new Set<string>();
         const allPageBlockIds = getPageLinkBlockIds();
+        const firstH1BlockId = getFirstH1BlockId();
 
         blockElements.forEach((el) => {
             const blockRect = el.getBoundingClientRect();
@@ -584,13 +595,10 @@ export default function BlockNoteEditorComponent({ pageId }: EditorProps) {
             );
 
             if (overlaps && blockId) {
-                // Skip H1 title blocks - check for h1 tag or data-level="1"
-                const hasH1Tag = el.querySelector('h1') !== null;
-                const contentType = el.querySelector('[data-content-type]')?.getAttribute('data-content-type');
-                const level = el.querySelector('[data-level]')?.getAttribute('data-level');
-                const isTitle = hasH1Tag || (contentType === 'heading' && level === '1');
+                // Skip ONLY the first H1 block (page title), allow other H1s
+                const isFirstH1 = blockId === firstH1BlockId;
 
-                if (!isTitle) {
+                if (!isFirstH1) {
                     selectedIds.add(blockId);
                     // Check if this is a page link block
                     if (allPageBlockIds.has(blockId)) {
@@ -601,7 +609,7 @@ export default function BlockNoteEditorComponent({ pageId }: EditorProps) {
         });
 
         return { selectedIds, pageBlockIds: pageBlockIdsInRect };
-    }, [getPageLinkBlockIds]);
+    }, [getPageLinkBlockIds, getFirstH1BlockId]);
 
     // Notion-style block selection (CSS-based via dynamic style tag, NOT text selection)
     const selectBlocksExceptTitle = useCallback(() => {
@@ -610,22 +618,29 @@ export default function BlockNoteEditorComponent({ pageId }: EditorProps) {
         // Clear any existing text selection to prevent formatting toolbar
         window.getSelection()?.removeAllRanges();
 
-        // Collect block IDs, excluding the title block (H1 heading)
+        // Collect block IDs, excluding ONLY the first H1 heading (title)
         const allBlockIds = new Set<string>();
-        const collectBlockIds = (blocks: any[]) => {
+        let firstH1Skipped = false;
+
+        const collectBlockIds = (blocks: any[], isTopLevel: boolean = true) => {
             blocks.forEach((block: any) => {
-                // Skip H1 heading blocks (title)
-                const isTitle = block.type === 'heading' && block.props?.level === 1;
-                if (!isTitle) {
+                // Skip ONLY the first H1 heading block (page title)
+                const isH1 = block.type === 'heading' && block.props?.level === 1;
+                const shouldSkip = isTopLevel && isH1 && !firstH1Skipped;
+
+                if (shouldSkip) {
+                    firstH1Skipped = true;
+                } else {
                     allBlockIds.add(block.id);
                 }
+
                 if (block.children && block.children.length > 0) {
-                    collectBlockIds(block.children);
+                    collectBlockIds(block.children, false);
                 }
             });
         };
         if (editor.document) {
-            collectBlockIds(editor.document);
+            collectBlockIds(editor.document, true);
         }
 
         // Find page link blocks from DOM (more reliable than parsing BlockNote content structure)
@@ -1162,6 +1177,8 @@ export default function BlockNoteEditorComponent({ pageId }: EditorProps) {
             }
 
             // Handle Delete/Backspace to remove selected blocks
+            // Only intercept when BLOCK selection exists (CSS-based selection)
+            // Text selection deletion is handled by BlockNote/TipTap natively
             if (selectedBlockIds.size > 0 && (e.key === 'Delete' || e.key === 'Backspace')) {
                 e.preventDefault();
                 e.stopPropagation();
@@ -1292,8 +1309,8 @@ export default function BlockNoteEditorComponent({ pageId }: EditorProps) {
                     const inlineContent = target.closest('.bn-inline-content');
                     const blockContent = target.closest('.bn-block-content');
 
-                    // For NON-page blocks: if clicking on content, always allow editing
-                    // This ensures cursor appears even for short text like "ㅁ"
+                    // For NON-page blocks: if clicking on content, always allow editing/text selection
+                    // This ensures cursor appears and text selection works
                     if (!isPageBlock && (inlineContent || blockContent)) {
                         return;
                     }
