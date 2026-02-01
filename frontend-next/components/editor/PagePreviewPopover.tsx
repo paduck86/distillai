@@ -175,6 +175,15 @@ export default function PagePreviewPopover() {
 
             if (!anchor) return;
 
+            // Don't show preview while text is being selected/dragged
+            const selection = window.getSelection();
+            if (selection && !selection.isCollapsed && selection.toString().length > 0) {
+                return;
+            }
+
+            // Don't show preview if mouse button is pressed (dragging)
+            if (e.buttons !== 0) return;
+
             // Only show preview for page links inside the editor (not sidebar)
             const isInEditor = anchor.closest('.bn-editor');
             if (!isInEditor) return;
