@@ -1,5 +1,5 @@
 "use client";
-// Force rebuild - page preview popover with instant hide on hover out
+// Force rebuild v3 - instant show/hide on hover
 import { useState, useEffect, useCallback, useRef } from "react";
 import { FileText } from "lucide-react";
 import { api } from "@/lib/api";
@@ -24,11 +24,9 @@ export default function PagePreviewPopover() {
     const [isVisible, setIsVisible] = useState(false);
     const [position, setPosition] = useState<PopoverPosition>({ x: 0, top: null, bottom: null });
     const [pageData, setPageData] = useState<PagePreviewData | null>(null);
-    const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-    const hideTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const currentPageIdRef = useRef<string | null>(null);
+    const currentAnchorRef = useRef<HTMLAnchorElement | null>(null);
     const popoverRef = useRef<HTMLDivElement>(null);
-    const isHoveringPopoverRef = useRef(false);
 
     // Get pageTree from store to build breadcrumb
     const pageTree = usePageStore((state) => state.pageTree);
@@ -123,61 +121,36 @@ export default function PagePreviewPopover() {
         })();
     }, [pageTree, findPageInTree, buildBreadcrumb, pageData?.id]);
 
-    // Handle mouse enter on page link
-    const handleMouseEnter = useCallback((e: MouseEvent) => {
-        const target = e.target as HTMLElement;
-        const anchor = target.closest('a[href^="/page/"]') as HTMLAnchorElement | null;
+    // Set up event listeners
+    useEffect(() => {
+        const showPopover = (anchor: HTMLAnchorElement, pageId: string) => {
+            currentAnchorRef.current = anchor;
 
-        if (!anchor) return;
-
-        // Only show preview for page links inside the editor (not sidebar)
-        const isInEditor = anchor.closest('.bn-editor');
-        if (!isInEditor) return;
-
-        // Clear any pending hide timeout
-        if (hideTimeoutRef.current) {
-            clearTimeout(hideTimeoutRef.current);
-            hideTimeoutRef.current = null;
-        }
-
-        const href = anchor.getAttribute('href') || '';
-        const pageId = href.replace('/page/', '');
-
-        if (!pageId) return;
-
-        // Delay before showing popover
-        hoverTimeoutRef.current = setTimeout(() => {
             const rect = anchor.getBoundingClientRect();
             const viewportHeight = window.innerHeight;
             const viewportWidth = window.innerWidth;
-            const popoverHeight = 220; // Approximate height
-            const popoverWidth = 256; // w-64 = 16rem = 256px
-            const gap = 8; // Gap between link and popover
+            const popoverHeight = 220;
+            const popoverWidth = 256;
+            const gap = 8;
 
-            // Calculate x position - align with link start, but ensure it doesn't overflow right edge
             let x = rect.left;
             if (x + popoverWidth > viewportWidth - 16) {
-                // Would overflow right - align to right edge with padding
                 x = viewportWidth - popoverWidth - 16;
             }
-            // Ensure it doesn't go off left edge
             if (x < 16) {
                 x = 16;
             }
 
-            // Check if there's enough space below the link
             const spaceBelow = viewportHeight - rect.bottom;
             const showAbove = spaceBelow < popoverHeight + gap;
 
             if (showAbove) {
-                // Position above the link - use bottom positioning
                 setPosition({
                     x,
                     top: null,
                     bottom: viewportHeight - rect.top + gap
                 });
             } else {
-                // Position below the link - use top positioning
                 setPosition({
                     x,
                     top: rect.bottom + gap,
@@ -187,80 +160,63 @@ export default function PagePreviewPopover() {
 
             setIsVisible(true);
             initializePageData(pageId);
-        }, 300); // 300ms delay
-    }, [initializePageData]);
-
-    // Handle mouse leave on page link
-    const handleMouseLeave = useCallback((e: MouseEvent) => {
-        // Clear show timeout
-        if (hoverTimeoutRef.current) {
-            clearTimeout(hoverTimeoutRef.current);
-            hoverTimeoutRef.current = null;
-        }
-
-        // Hide immediately when leaving page link
-        if (!isHoveringPopoverRef.current) {
-            setIsVisible(false);
-            currentPageIdRef.current = null;
-            setPageData(null);
-        }
-    }, []);
-
-    // Handle popover mouse enter/leave
-    const handlePopoverMouseEnter = useCallback(() => {
-        isHoveringPopoverRef.current = true;
-        if (hideTimeoutRef.current) {
-            clearTimeout(hideTimeoutRef.current);
-            hideTimeoutRef.current = null;
-        }
-    }, []);
-
-    const handlePopoverMouseLeave = useCallback(() => {
-        isHoveringPopoverRef.current = false;
-        // Hide immediately when leaving popover
-        setIsVisible(false);
-        currentPageIdRef.current = null;
-        setPageData(null);
-    }, []);
-
-    // Set up event listeners
-    useEffect(() => {
-        const handleMouseOver = (e: MouseEvent) => {
-            const target = e.target as HTMLElement;
-            if (target.closest('a[href^="/page/"]')) {
-                handleMouseEnter(e);
-            }
         };
 
-        const handleMouseOut = (e: MouseEvent) => {
-            const target = e.target as HTMLElement;
-            const relatedTarget = e.relatedTarget as HTMLElement | null;
+        const hidePopover = () => {
+            currentAnchorRef.current = null;
+            currentPageIdRef.current = null;
+            setIsVisible(false);
+            setPageData(null);
+        };
 
-            // Check if leaving a page link
-            if (target.closest('a[href^="/page/"]')) {
-                // Don't hide if moving to popover
-                if (relatedTarget?.closest('#page-preview-popover')) {
-                    return;
-                }
-                handleMouseLeave(e);
+        const handleMouseOver = (e: MouseEvent) => {
+            const target = e.target as HTMLElement;
+            const anchor = target.closest('a[href^="/page/"]') as HTMLAnchorElement | null;
+
+            if (!anchor) return;
+
+            // Only show preview for page links inside the editor (not sidebar)
+            const isInEditor = anchor.closest('.bn-editor');
+            if (!isInEditor) return;
+
+            const href = anchor.getAttribute('href') || '';
+            const pageId = href.replace('/page/', '');
+
+            if (!pageId) return;
+
+            // If already showing for this anchor, skip
+            if (currentAnchorRef.current === anchor) return;
+
+            showPopover(anchor, pageId);
+        };
+
+        const handleMouseMove = (e: MouseEvent) => {
+            // Only check if popover is visible
+            if (!currentAnchorRef.current) return;
+
+            const anchor = currentAnchorRef.current;
+            const rect = anchor.getBoundingClientRect();
+
+            // Check if mouse is still over the anchor
+            const isOverAnchor =
+                e.clientX >= rect.left &&
+                e.clientX <= rect.right &&
+                e.clientY >= rect.top &&
+                e.clientY <= rect.bottom;
+
+            if (!isOverAnchor) {
+                hidePopover();
             }
         };
 
         document.addEventListener('mouseover', handleMouseOver);
-        document.addEventListener('mouseout', handleMouseOut);
+        document.addEventListener('mousemove', handleMouseMove);
 
         return () => {
             document.removeEventListener('mouseover', handleMouseOver);
-            document.removeEventListener('mouseout', handleMouseOut);
-
-            if (hoverTimeoutRef.current) {
-                clearTimeout(hoverTimeoutRef.current);
-            }
-            if (hideTimeoutRef.current) {
-                clearTimeout(hideTimeoutRef.current);
-            }
+            document.removeEventListener('mousemove', handleMouseMove);
         };
-    }, [handleMouseEnter, handleMouseLeave]);
+    }, [initializePageData]);
 
     if (!isVisible) return null;
 
@@ -268,9 +224,7 @@ export default function PagePreviewPopover() {
         <div
             id="page-preview-popover"
             ref={popoverRef}
-            onMouseEnter={handlePopoverMouseEnter}
-            onMouseLeave={handlePopoverMouseLeave}
-            className="fixed z-50 w-64 min-h-[180px] rounded-xl shadow-lg border overflow-hidden"
+            className="fixed z-50 w-64 min-h-[180px] rounded-xl shadow-lg border overflow-hidden pointer-events-none"
             style={{
                 left: `${position.x}px`,
                 top: position.top !== null ? `${position.top}px` : 'auto',

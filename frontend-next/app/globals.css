@@ -460,3 +460,13 @@ body.block-selecting [contenteditable] {
   position: absolute;
   font-weight: 700;
 }
+
+/* Hide placeholder "Enter text or type '/' for commands" when editor not focused */
+.bn-editor:not(:focus-within) .bn-inline-content::before {
+  display: none !important;
+}
+
+/* But always show H1 "New page" placeholder */
+.bn-editor:not(:focus-within) [data-content-type="heading"][data-level="1"] .bn-inline-content::before {
+  display: block !important;
+}
