@@ -2094,24 +2094,8 @@ export default function BlockNoteEditorComponent({ pageId }: EditorProps) {
                     // 1. Remove links to pages that are not current children
                     contentBlocks = removeInvalidPageLinks(contentBlocks, childPageIds);
 
-                    // 2. Deduplicate child page links (keep first occurrence only)
-                    const seenPageLinks = new Set<string>();
-                    contentBlocks = contentBlocks.filter(block => {
-                        if (!Array.isArray(block.content)) return true;
-                        const linkItem = block.content.find((item: any) =>
-                            item.type === "link" && item.href?.startsWith("/page/")
-                        );
-                        if (linkItem) {
-                            const linkedPageId = linkItem.href.replace("/page/", "");
-                            if (seenPageLinks.has(linkedPageId)) {
-                                return false; // Duplicate, remove
-                            }
-                            seenPageLinks.add(linkedPageId);
-                        }
-                        return true;
-                    });
-
-                    // 3. Update child page links with latest info from pageTree (icon + title)
+                    // 2. Update child page links with latest info from pageTree (icon + title)
+                    // Note: We allow duplicate page links - user may intentionally copy-paste them
                     contentBlocks = updateChildPageLinks(contentBlocks, currentPageTree);
 
                     // 4. Ensure first block is a heading with title (if not present)
