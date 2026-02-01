@@ -6,7 +6,7 @@
 
 - **판단, 설계, 구현 결정 시**
   - 세션 기억이나 추론에 의존하지 않는다
-  - 항상 이 `CLAUDE.md`와 `.skill/` 폴더를 다시 읽는다
+  - 항상 이 `CLAUDE.md`와 `.claude/skills/` 폴더를 다시 읽는다
   - 요청 마지막에 skill을 사용했으면 어떤 스킬을 사용했는지 명시한다.
 
 - 이 규칙은 모든 세션, 모든 창, 모든 작업에 적용된다
@@ -497,3 +497,4 @@ railway up
 - `.claude/skills/ui-ux-pro-max.md` - UI/UX 디자인
 - `.claude/skills/clean-code.md` - 코딩 표준
 - `.claude/skills/vercel-deployment.md` - 배포
+- `.claude/commands/techdebt.md` - 기술 부채 정리
