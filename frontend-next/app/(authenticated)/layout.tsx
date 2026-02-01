@@ -5,8 +5,15 @@ import { useRouter } from "next/navigation";
 import { Menu, X } from "lucide-react";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useUIStore } from "@/store/useUIStore";
+import { supabase } from "@/lib/supabase";
 import Sidebar from "@/components/sidebar/Sidebar";
 import PagePreviewPopover from "@/components/editor/PagePreviewPopover";
+
+// 허용된 이메일 목록
+const ALLOWED_EMAILS = [
+    "paduck86@gmail.com",
+    "xunaoo@gmail.com"
+];
 
 export default function DashboardLayout({
     children,
@@ -20,6 +27,13 @@ export default function DashboardLayout({
     useEffect(() => {
         if (!loading && !user) {
             router.push("/login");
+        }
+        // 이메일 화이트리스트 체크
+        if (!loading && user && !ALLOWED_EMAILS.includes(user.email?.toLowerCase() || "")) {
+            console.error("Unauthorized email:", user.email);
+            supabase.auth.signOut().then(() => {
+                router.push("/login");
+            });
         }
     }, [user, loading, router]);
 
