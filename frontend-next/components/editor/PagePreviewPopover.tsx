@@ -130,6 +130,10 @@ export default function PagePreviewPopover() {
 
         if (!anchor) return;
 
+        // Only show preview for page links inside the editor (not sidebar)
+        const isInEditor = anchor.closest('.bn-editor');
+        if (!isInEditor) return;
+
         // Clear any pending hide timeout
         if (hideTimeoutRef.current) {
             clearTimeout(hideTimeoutRef.current);
@@ -145,8 +149,21 @@ export default function PagePreviewPopover() {
         hoverTimeoutRef.current = setTimeout(() => {
             const rect = anchor.getBoundingClientRect();
             const viewportHeight = window.innerHeight;
+            const viewportWidth = window.innerWidth;
             const popoverHeight = 220; // Approximate height
+            const popoverWidth = 256; // w-64 = 16rem = 256px
             const gap = 8; // Gap between link and popover
+
+            // Calculate x position - align with link start, but ensure it doesn't overflow right edge
+            let x = rect.left;
+            if (x + popoverWidth > viewportWidth - 16) {
+                // Would overflow right - align to right edge with padding
+                x = viewportWidth - popoverWidth - 16;
+            }
+            // Ensure it doesn't go off left edge
+            if (x < 16) {
+                x = 16;
+            }
 
             // Check if there's enough space below the link
             const spaceBelow = viewportHeight - rect.bottom;
@@ -155,14 +172,14 @@ export default function PagePreviewPopover() {
             if (showAbove) {
                 // Position above the link - use bottom positioning
                 setPosition({
-                    x: rect.left,
+                    x,
                     top: null,
                     bottom: viewportHeight - rect.top + gap
                 });
             } else {
                 // Position below the link - use top positioning
                 setPosition({
-                    x: rect.left,
+                    x,
                     top: rect.bottom + gap,
                     bottom: null
                 });
@@ -185,6 +202,8 @@ export default function PagePreviewPopover() {
         hideTimeoutRef.current = setTimeout(() => {
             if (!isHoveringPopoverRef.current) {
                 setIsVisible(false);
+                currentPageIdRef.current = null;
+                setPageData(null);
             }
         }, 150);
     }, []);
@@ -200,9 +219,12 @@ export default function PagePreviewPopover() {
 
     const handlePopoverMouseLeave = useCallback(() => {
         isHoveringPopoverRef.current = false;
+        // Immediately hide when leaving popover (shorter delay)
         hideTimeoutRef.current = setTimeout(() => {
             setIsVisible(false);
-        }, 150);
+            currentPageIdRef.current = null;
+            setPageData(null);
+        }, 100);
     }, []);
 
     // Set up event listeners
