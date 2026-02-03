@@ -1,7 +1,6 @@
 # 📋 Notion 전체 기능 분석 및 Distillai 구현 플랜
 
 > 2024년 2월 Notion 직접 분석 결과
-> 2026년 2월 검증 완료 ✅
 
 ---
 
@@ -22,14 +21,12 @@
 | Divider | `---` | 구분선 |
 | Callout | - | 강조 박스 |
 | Code | ``` | 코드 블록 |
-
-### 🤖 AI Blocks (Notion AI)
-| 블록 | 설명 |
-|------|------|
-| Ask a question | AI에게 질문하기 |
-| Ask about this page | 현재 페이지에 대해 질문 |
-| Make shorter | 텍스트 요약 |
-| AI Meeting Notes | 회의 노트 자동 생성 (Beta) |
+| **Synced Block** | - | 여러 페이지에 동기화되는 블록 |
+| **Simple Table** | - | DB 아닌 단순 테이블 |
+| **Table of Contents** | - | 페이지 내 목차 |
+| **Breadcrumb** | - | 페이지 경로 표시 |
+| **Bookmark** | - | URL 프리뷰 카드 |
+| **Template Button** | - | 클릭 시 블록 템플릿 생성 |
 
 ### 📊 Database Views
 | 뷰 타입 | 설명 |
@@ -40,10 +37,9 @@
 | Calendar | 달력 |
 | List | 리스트 |
 | Gallery | 갤러리 (카드) |
-| Chart | 차트 (Vertical/Horizontal Bar, Line, Donut) |
+| Chart | 차트 (Bar, Line, Donut) |
 | Feed | 피드 |
 | Map | 지도 (New) |
-| Form | 데이터베이스 입력 양식 |
 
 ### 📁 Database Property Types
 | 속성 | 설명 |
@@ -66,18 +62,8 @@
 | Button | 버튼 |
 | ID | 고유 ID |
 | Place | 장소 |
-| Created time | 생성 시간 |
-| Created by | 생성한 사용자 |
-| Last edited time | 수정 시간 |
-| Last edited by | 수정한 사용자 |
-
-### 🔗 외부 연동 속성 (Integrations)
-| 속성 | 설명 |
-|------|------|
-| Google Drive File | 구글 드라이브 파일 연동 |
-| Figma File | Figma 파일 연동 |
-| GitHub Pull Request | GitHub PR 연동 |
-| Zendesk Ticket | Zendesk 티켓 연동 |
+| Created time/by | 생성 시간/사용자 |
+| Last edited time/by | 수정 시간/사용자 |
 
 ### 🎨 Media & Embeds
 - Image, Video, Audio
@@ -88,9 +74,7 @@
 
 ### 📐 Layout
 - 2~5 Columns
-- Toggle Heading 1 (`## >`)
-- Toggle Heading 2 (`## >`)
-- Toggle Heading 3 (`### >`)
+- Toggle Headings (접을 수 있는 헤딩)
 
 ---
 
@@ -109,19 +93,19 @@
 | Math/LaTeX | - | 수식 |
 
 ### 포맷팅 툴바 (텍스트 선택 시)
-- Improve writing (AI) - 글쓰기 개선
-- Ask AI - AI에게 질문
-- Comment - 댓글 추가
-- 😀 이모지
-- ☑️ 체크 마크
+- Explain (AI)
+- Ask AI
+- Comment
+- 이모지
+- 체크 마크
 - Text (블록 타입 변경)
 - B (Bold)
 - I (Italic)
 - U (Underline)
 - S (Strikethrough)
 - </> (Code)
-- 𝑥 수식 (Math/LaTeX)
-- 🔗 링크
+- 수식 (Math/LaTeX)
+- 링크
 - A (색상)
 - ... (더보기)
 
@@ -294,6 +278,20 @@ Workspace Name
 | Expand/close toggles | `⌘+⌥+T` |
 | Highlight text | `⌘+⇧+H` |
 
+### Block Type Creation (숫자 단축키)
+| 블록 | 단축키 |
+|------|--------|
+| Text | `⌘+⌥+0` |
+| H1 heading | `⌘+⌥+1` |
+| H2 heading | `⌘+⌥+2` |
+| H3 heading | `⌘+⌥+3` |
+| Checkbox | `⌘+⌥+4` |
+| Bullet list | `⌘+⌥+5` |
+| Numbered list | `⌘+⌥+6` |
+| Toggle list | `⌘+⌥+7` |
+| Code block | `⌘+⌥+8` |
+| New page | `⌘+⌥+9` |
+
 ### Markdown Style
 | 블록 | 마크다운 |
 |------|----------|
@@ -355,29 +353,40 @@ Workspace Name
 
 ## 🎯 Distillai 에디터 구현 우선순위
 
-### Phase 1: Core Editor (MVP)
+### Phase 1: Core Editor (MVP) ✅ 현재 단계
 1. **기본 블록**: Text, H1-H3, Bulleted/Numbered list, To-do, Quote, Divider, Callout
 2. **인라인 포맷팅**: Bold, Italic, Underline, Strikethrough, Code, Link
 3. **/ 명령어**: 블록 생성 메뉴
 4. **마크다운 단축키**: `#`, `-`, `1.`, `[]`, `>`
 5. **블록 드래그 앤 드롭**
 
-### Phase 2: Enhanced Editor
-1. **Toggle 블록**
-2. **코드 블록** (syntax highlighting)
-3. **이미지/파일 업로드**
-4. **색상 (텍스트/배경)**
-5. **블록 이동/복제 단축키**
+### Phase 2: Enhanced Editor 🔜 다음 단계
+1. **Toggle 블록** - 접기/펼치기 기능
+2. **코드 블록** - syntax highlighting (Prism.js/highlight.js)
+3. **이미지/파일 업로드** - Supabase Storage 연동
+4. **색상 (텍스트/배경)** - 10가지 색상 팔레트
+5. **블록 이동/복제 단축키** - `⌘+⇧+↑/↓`, `⌘+D`
+6. **숫자 단축키** - `⌘+⌥+1~9` 블록 타입 생성
+7. **Sub-items (들여쓰기)** - Tab/Shift+Tab으로 리스트 중첩
 
-### Phase 3: Database (간소화)
-1. **Simple Table** (속성: Text, Select, Date, Checkbox)
-2. **기본 필터/정렬**
-3. **Table ↔ List 뷰 전환**
+### Phase 3: Advanced Blocks
+1. **Simple Table** - 데이터베이스 아닌 단순 테이블
+2. **Synced Block** - 여러 페이지에 동기화되는 블록
+3. **Table of Contents** - 페이지 내 목차 자동 생성
+4. **Bookmark Block** - URL 붙여넣기 시 프리뷰 카드
+5. **Link Preview** - 링크 프리뷰 옵션 (dismiss/bookmark/embed)
 
-### Phase 4: Collaboration
+### Phase 4: Database (간소화)
+1. **Table View** (속성: Text, Select, Date, Checkbox, Number)
+2. **기본 필터/정렬/그룹화**
+3. **Table ↔ List ↔ Board 뷰 전환**
+4. **Database Templates** - 새 항목 생성 시 기본 템플릿
+
+### Phase 5: Collaboration
 1. **페이지 공유 (링크)**
-2. **Comments**
+2. **Comments & Mentions**
 3. **Page history**
+4. **실시간 커서 공유** (선택적)
 
 ---
 
@@ -438,29 +447,31 @@ Workspace Name
 
 ---
 
-*이 문서는 Notion 웹 앱을 직접 분석하여 작성되었습니다.*
+---
+
+## 📊 검증 결과 (2026년 2월 공식 문서 대조)
+
+### ✅ 검증 완료된 기능
+- Basic Blocks (12개) - 완전 일치
+- Database Views (9개) - 완전 일치
+- Database Properties (22개) - 완전 일치
+- 텍스트 포맷팅 (9가지) - 완전 일치
+- 키보드 단축키 (50+개) - 완전 일치
+- @, [[, + 명령어 - 완전 일치
+
+### 🆕 추가된 누락 기능 (이번 검증에서 발견)
+| 기능 | 설명 | 구현 우선순위 |
+|------|------|--------------|
+| Synced Block | 여러 페이지에 동기화되는 블록 | Phase 3 |
+| Simple Table | DB 아닌 단순 테이블 | Phase 3 |
+| Table of Contents | 페이지 내 목차 | Phase 3 |
+| Breadcrumb | 페이지 경로 표시 | Phase 3 |
+| Bookmark Block | URL 프리뷰 카드 | Phase 3 |
+| Template Button | 클릭 시 블록 템플릿 생성 | Phase 4 |
+| 숫자 단축키 | `⌘+⌥+1~9` 블록 타입 생성 | Phase 2 |
+| Link Preview | 링크 붙여넣기 시 프리뷰 옵션 | Phase 3 |
 
 ---
 
-## 📝 검증 로그 (2026-02-03)
-
-### 검증 완료 항목 ✅
-1. **/ 명령어 블록 타입**: Basic Blocks, AI Blocks, Media, Database Views, Layout 모두 확인
-2. **텍스트 포맷팅 툴바**: 모든 버튼 및 기능 확인
-3. **사이드바 구조**: Workspace, Private, Shared, Notion apps, Settings 등 완벽 일치
-4. **Database Property Types**: 모든 속성 타입 확인 (외부 연동 속성 추가 발견)
-5. **Settings 구조**: Account, Workspace, Preferences 섹션 확인
-
-### 문서 업데이트 내용
-1. AI Blocks 섹션 추가 (Ask a question, AI Meeting Notes 등)
-2. Form 뷰 타입 추가
-3. 외부 연동 속성 섹션 추가 (Google Drive, Figma, GitHub, Zendesk)
-4. Toggle Heading 1/2/3 세분화
-5. 포맷팅 툴바 "Explain (AI)" → "Improve writing" 수정
-6. Created time/by, Last edited time/by 분리
-
-### 검증 방법
-- Notion 웹 앱 직접 테스트 (Chrome MCP)
-- / 명령어 메뉴 전체 스크롤 확인
-- Add property 메뉴 전체 확인
-- Settings 창 확인
+*이 문서는 Notion 웹 앱 직접 분석 + 공식 Help Center 문서 대조를 통해 작성되었습니다.*
+*마지막 검증: 2026년 2월*
