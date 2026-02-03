@@ -1,0 +1,262 @@
+/* Synced Block Styles */
+
+/* Synced block wrapper */
+.synced-block-wrapper {
+    position: relative;
+    margin: 8px 0;
+    transition: all 0.2s ease;
+}
+
+/* Left indicator bar */
+.synced-block-wrapper::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    background: linear-gradient(to bottom, #06b6d4, #3b82f6);
+    border-radius: 2px 0 0 2px;
+    opacity: 0.8;
+    transition: opacity 0.2s ease;
+}
+
+.synced-block-wrapper:hover::before {
+    opacity: 1;
+}
+
+/* Loading state */
+.synced-block-wrapper.is-loading {
+    opacity: 0.6;
+}
+
+.synced-block-wrapper.is-loading::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(
+        -45deg,
+        transparent,
+        transparent 8px,
+        rgba(6, 182, 212, 0.05) 8px,
+        rgba(6, 182, 212, 0.05) 16px
+    );
+    pointer-events: none;
+    animation: synced-block-loading 1s linear infinite;
+}
+
+@keyframes synced-block-loading {
+    from {
+        background-position: 0 0;
+    }
+    to {
+        background-position: 22.63px 0;
+    }
+}
+
+/* Header */
+.synced-block-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 12px;
+    font-size: 12px;
+    color: #64748b;
+    background: linear-gradient(to right, rgba(6, 182, 212, 0.08), transparent);
+    border-bottom: 1px solid rgba(6, 182, 212, 0.15);
+    border-top-right-radius: 6px;
+}
+
+.dark .synced-block-header {
+    color: #94a3b8;
+    background: linear-gradient(to right, rgba(6, 182, 212, 0.1), transparent);
+    border-bottom: 1px solid rgba(6, 182, 212, 0.2);
+}
+
+/* Sync icon animation */
+.synced-block-header .sync-icon {
+    animation: slow-spin 3s linear infinite;
+}
+
+@keyframes slow-spin {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Content area */
+.synced-block-content {
+    padding: 8px 12px 8px 16px;
+    border: 1px solid rgba(6, 182, 212, 0.15);
+    border-left: none;
+    border-top: none;
+    border-radius: 0 0 6px 6px;
+    background: white;
+    transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.dark .synced-block-content {
+    background: #111827;
+    border-color: rgba(6, 182, 212, 0.2);
+}
+
+.synced-block-wrapper:hover .synced-block-content {
+    border-color: rgba(6, 182, 212, 0.3);
+    background: rgba(6, 182, 212, 0.02);
+}
+
+.dark .synced-block-wrapper:hover .synced-block-content {
+    background: rgba(6, 182, 212, 0.05);
+}
+
+/* References dropdown */
+.synced-block-references {
+    animation: fadeIn 0.15s ease;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-4px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* BlockNote editor integration */
+.bn-editor [data-synced-block="true"] {
+    position: relative;
+}
+
+.bn-editor [data-synced-block="true"]::before {
+    content: '';
+    position: absolute;
+    left: -12px;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    background: linear-gradient(to bottom, #06b6d4, #3b82f6);
+    border-radius: 2px;
+}
+
+.bn-editor [data-synced-block="true"]::after {
+    content: '동기화';
+    position: absolute;
+    right: 4px;
+    top: 4px;
+    font-size: 10px;
+    color: #06b6d4;
+    background: rgba(6, 182, 212, 0.1);
+    padding: 2px 6px;
+    border-radius: 4px;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.bn-editor [data-synced-block="true"]:hover::after {
+    opacity: 1;
+}
+
+/* Menu styles */
+.synced-block-menu {
+    animation: menuFadeIn 0.15s ease;
+}
+
+@keyframes menuFadeIn {
+    from {
+        opacity: 0;
+        transform: scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+.synced-block-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 12px;
+    width: 100%;
+    text-align: left;
+    font-size: 14px;
+    color: #374151;
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.15s ease;
+}
+
+.synced-block-menu-item:hover {
+    background: rgba(6, 182, 212, 0.1);
+}
+
+.dark .synced-block-menu-item {
+    color: #d1d5db;
+}
+
+.dark .synced-block-menu-item:hover {
+    background: rgba(6, 182, 212, 0.15);
+}
+
+.synced-block-menu-item .icon {
+    flex-shrink: 0;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+}
+
+.synced-block-menu-item .icon.create {
+    background: rgba(6, 182, 212, 0.15);
+    color: #06b6d4;
+}
+
+.synced-block-menu-item .icon.link {
+    background: rgba(59, 130, 246, 0.15);
+    color: #3b82f6;
+}
+
+/* Pulse animation for realtime updates */
+.synced-block-pulse {
+    animation: syncPulse 0.5s ease;
+}
+
+@keyframes syncPulse {
+    0%, 100% {
+        box-shadow: 0 0 0 0 rgba(6, 182, 212, 0);
+    }
+    50% {
+        box-shadow: 0 0 0 4px rgba(6, 182, 212, 0.3);
+    }
+}
+
+/* Tooltip */
+.synced-block-tooltip {
+    position: absolute;
+    z-index: 100;
+    padding: 4px 8px;
+    font-size: 12px;
+    color: white;
+    background: #1f2937;
+    border-radius: 4px;
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    transform: translateY(4px);
+    transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.synced-block-wrapper:hover .synced-block-tooltip {
+    opacity: 1;
+    transform: translateY(0);
+}

@@ -2,6 +2,33 @@ import { supabase } from "./supabase";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api";
 
+// Synced Block Types
+export interface SyncedBlockContent {
+    type: string;
+    content: string;
+    properties?: Record<string, any>;
+}
+
+export interface SyncedBlock {
+    id: string;
+    userId: string;
+    content: SyncedBlockContent[];
+    title: string | null;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface SyncedBlockWithRefs extends SyncedBlock {
+    referenceCount: number;
+    referencedPages: string[];
+}
+
+export interface SyncedBlockReference {
+    blockId: string;
+    distillationId: string;
+    pageTitle: string;
+}
+
 async function getHeaders(isFormData = false) {
     const { data: { session } } = await supabase.auth.getSession();
     const token = session?.access_token;
@@ -91,6 +118,27 @@ export const api = {
         updateBatch: (pageId: string, blocks: any[]) =>
             api.put<any[]>(`/blocks/batch/${pageId}`, { blocks }),
     },
+    // Synced Blocks (동기화 블록)
+    syncedBlocks: {
+        // CRUD
+        getAll: () => api.get<SyncedBlock[]>("/synced-blocks"),
+        get: (id: string) => api.get<SyncedBlockWithRefs>(`/synced-blocks/${id}`),
+        create: (content: SyncedBlockContent[], title?: string) =>
+            api.post<SyncedBlock>("/synced-blocks", { content, title }),
+        update: (id: string, data: { content?: SyncedBlockContent[]; title?: string }) =>
+            api.put<SyncedBlock>(`/synced-blocks/${id}`, data),
+        delete: (id: string) => api.delete(`/synced-blocks/${id}`),
+        // Block connections
+        convertFromBlock: (blockId: string) =>
+            api.post<SyncedBlock>(`/synced-blocks/from-block/${blockId}`),
+        linkToBlock: (syncedBlockId: string, blockId: string) =>
+            api.post<{ success: boolean }>(`/synced-blocks/${syncedBlockId}/link/${blockId}`),
+        unlinkFromBlock: (blockId: string) =>
+            api.delete(`/synced-blocks/unlink/${blockId}`),
+        // References
+        getReferences: (id: string) =>
+            api.get<SyncedBlockReference[]>(`/synced-blocks/${id}/references`),
+    },
     // AI Summarization APIs
     youtube: {
         summarize: (url: string, language: string = "korean") =>
@@ -129,5 +177,17 @@ export const api = {
     url: {
         summarize: (url: string, language: string = "korean") =>
             api.post<{ summary: string; title?: string }>("/url/summarize", { url, language }),
+    },
+    bookmark: {
+        preview: (url: string) =>
+            api.get<{
+                url: string;
+                title: string | null;
+                description: string | null;
+                image: string | null;
+                favicon: string | null;
+                siteName: string | null;
+                domain: string;
+            }>(`/bookmark/preview?url=${encodeURIComponent(url)}`),
     },
 };

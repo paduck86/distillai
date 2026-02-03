@@ -739,3 +739,75 @@ export function mapDistillationRowWithHierarchy(row: DistillationRowWithHierarch
     pageCover: row.page_cover ?? null,
   };
 }
+
+// ============================================
+// Synced Block Types (동기화 블록)
+// ============================================
+
+export interface SyncedBlock {
+  id: string;
+  userId: string;
+  content: SyncedBlockContent[];
+  title: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SyncedBlockContent {
+  type: BlockType;
+  content: string;
+  properties?: BlockProperties;
+}
+
+export interface CreateSyncedBlock {
+  content: SyncedBlockContent[];
+  title?: string;
+}
+
+export interface UpdateSyncedBlock {
+  content?: SyncedBlockContent[];
+  title?: string;
+}
+
+export interface SyncedBlockRow {
+  id: string;
+  user_id: string;
+  content: SyncedBlockContent[];
+  title: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export function mapSyncedBlockRow(row: SyncedBlockRow): SyncedBlock {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    content: row.content ?? [],
+    title: row.title,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+// Extended Block with synced block reference
+export interface BlockWithSyncedRef extends Block {
+  syncedBlockId: string | null;
+  syncedBlock?: SyncedBlock;
+}
+
+export interface BlockRowWithSyncedRef extends BlockRow {
+  synced_block_id: string | null;
+}
+
+export function mapBlockRowWithSyncedRef(row: BlockRowWithSyncedRef): BlockWithSyncedRef {
+  return {
+    ...mapBlockRow(row),
+    syncedBlockId: row.synced_block_id,
+  };
+}
+
+// Synced block with reference count
+export interface SyncedBlockWithRefs extends SyncedBlock {
+  referenceCount: number;
+  referencedPages: string[];
+}

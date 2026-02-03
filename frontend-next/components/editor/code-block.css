@@ -1,0 +1,339 @@
+/* Code Block Container */
+.bn-editor [data-content-type="codeBlock"] {
+  position: relative;
+  margin: 0.75rem 0;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+/* Code Block Wrapper (pre element) */
+.bn-editor pre {
+  position: relative;
+  border-radius: 8px;
+  padding: 2.75rem 1rem 1rem;
+  margin: 0;
+  overflow-x: auto;
+  font-family: var(--font-mono, 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace);
+  font-size: 0.875rem;
+  line-height: 1.6;
+  tab-size: 2;
+}
+
+/* Light mode code block - GitHub Light style */
+:root .bn-editor pre,
+.light .bn-editor pre {
+  background-color: #f6f8fa;
+  border: 1px solid #d0d7de;
+}
+
+/* Dark mode code block - GitHub Dark style */
+.dark .bn-editor pre {
+  background-color: #0d1117;
+  border: 1px solid #30363d;
+}
+
+/* Code element inside pre */
+.bn-editor pre code {
+  background: transparent !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+  font-size: inherit;
+  color: inherit;
+  white-space: pre;
+  display: block;
+}
+
+/* Language Selector Container */
+.bn-editor [data-content-type="codeBlock"] > div:first-child {
+  position: absolute;
+  top: 0.5rem;
+  left: 0.75rem;
+  z-index: 5;
+}
+
+/* Language Selector Dropdown */
+.bn-editor [data-content-type="codeBlock"] select {
+  appearance: none;
+  background: transparent;
+  border: none;
+  padding: 0.25rem 1.75rem 0.25rem 0.5rem;
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-size: 0.7rem;
+  font-weight: 500;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+  text-transform: lowercase;
+  letter-spacing: 0.02em;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%236e7681' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.5rem center;
+}
+
+/* Light mode select */
+:root .bn-editor [data-content-type="codeBlock"] select,
+.light .bn-editor [data-content-type="codeBlock"] select {
+  color: #57606a;
+}
+
+:root .bn-editor [data-content-type="codeBlock"] select:hover,
+.light .bn-editor [data-content-type="codeBlock"] select:hover {
+  background-color: rgba(175, 184, 193, 0.2);
+}
+
+/* Dark mode select */
+.dark .bn-editor [data-content-type="codeBlock"] select {
+  color: #8b949e;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%238b949e' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+}
+
+.dark .bn-editor [data-content-type="codeBlock"] select:hover {
+  background-color: rgba(110, 118, 129, 0.4);
+}
+
+.bn-editor [data-content-type="codeBlock"] select:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--color-primary);
+}
+
+/* ============================================
+   Shiki Syntax Highlighting Token Styles
+   prosemirror-highlight applies these classes
+   ============================================ */
+
+/* Shiki Token Styles - Light Mode (GitHub Light theme) */
+:root .bn-editor pre,
+.light .bn-editor pre {
+  color: #24292f;
+}
+
+/* Dark Mode base color */
+.dark .bn-editor pre {
+  color: #c9d1d9;
+}
+
+/* Comments */
+.bn-editor .hl-comment {
+  color: #6e7781;
+  font-style: italic;
+}
+.dark .bn-editor .hl-comment {
+  color: #8b949e;
+}
+
+/* Strings */
+.bn-editor .hl-string {
+  color: #0a3069;
+}
+.dark .bn-editor .hl-string {
+  color: #a5d6ff;
+}
+
+/* Keywords (const, let, function, if, else, return, etc.) */
+.bn-editor .hl-keyword {
+  color: #cf222e;
+}
+.dark .bn-editor .hl-keyword {
+  color: #ff7b72;
+}
+
+/* Functions */
+.bn-editor .hl-function {
+  color: #8250df;
+}
+.dark .bn-editor .hl-function {
+  color: #d2a8ff;
+}
+
+/* Variables and parameters */
+.bn-editor .hl-variable {
+  color: #953800;
+}
+.dark .bn-editor .hl-variable {
+  color: #ffa657;
+}
+
+/* Numbers */
+.bn-editor .hl-number {
+  color: #0550ae;
+}
+.dark .bn-editor .hl-number {
+  color: #79c0ff;
+}
+
+/* Types and classes */
+.bn-editor .hl-type {
+  color: #0550ae;
+}
+.dark .bn-editor .hl-type {
+  color: #79c0ff;
+}
+
+/* Operators */
+.bn-editor .hl-operator {
+  color: #cf222e;
+}
+.dark .bn-editor .hl-operator {
+  color: #ff7b72;
+}
+
+/* Punctuation */
+.bn-editor .hl-punctuation {
+  color: #24292f;
+}
+.dark .bn-editor .hl-punctuation {
+  color: #c9d1d9;
+}
+
+/* Property names */
+.bn-editor .hl-property {
+  color: #0550ae;
+}
+.dark .bn-editor .hl-property {
+  color: #79c0ff;
+}
+
+/* HTML/XML tags */
+.bn-editor .hl-tag {
+  color: #116329;
+}
+.dark .bn-editor .hl-tag {
+  color: #7ee787;
+}
+
+/* HTML/XML attributes */
+.bn-editor .hl-attribute {
+  color: #0550ae;
+}
+.dark .bn-editor .hl-attribute {
+  color: #79c0ff;
+}
+
+/* Regex */
+.bn-editor .hl-regex {
+  color: #0a3069;
+}
+.dark .bn-editor .hl-regex {
+  color: #a5d6ff;
+}
+
+/* Constants */
+.bn-editor .hl-constant {
+  color: #0550ae;
+}
+.dark .bn-editor .hl-constant {
+  color: #79c0ff;
+}
+
+/* Boolean values */
+.bn-editor .hl-boolean {
+  color: #0550ae;
+}
+.dark .bn-editor .hl-boolean {
+  color: #79c0ff;
+}
+
+/* Scrollbar for code blocks */
+.bn-editor pre::-webkit-scrollbar {
+  height: 8px;
+}
+
+.bn-editor pre::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+:root .bn-editor pre::-webkit-scrollbar-thumb,
+.light .bn-editor pre::-webkit-scrollbar-thumb {
+  background: #d0d7de;
+  border-radius: 4px;
+}
+
+.dark .bn-editor pre::-webkit-scrollbar-thumb {
+  background: #30363d;
+  border-radius: 4px;
+}
+
+.bn-editor pre::-webkit-scrollbar-thumb:hover {
+  background: var(--border-strong);
+}
+
+/* Selection in code blocks */
+:root .bn-editor pre ::selection,
+.light .bn-editor pre ::selection {
+  background-color: rgba(35, 131, 226, 0.25);
+}
+
+.dark .bn-editor pre ::selection {
+  background-color: rgba(56, 139, 253, 0.4);
+}
+
+/* Empty code block placeholder */
+.bn-editor [data-content-type="codeBlock"] code:empty::before {
+  content: "// Enter your code here...";
+  color: var(--foreground-tertiary);
+  pointer-events: none;
+  opacity: 0.6;
+}
+
+/* Copy Button - positioned in top-right */
+.code-block-copy-btn {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.75rem;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.25rem 0.5rem;
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-size: 0.7rem;
+  font-weight: 500;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  opacity: 0;
+}
+
+/* Show copy button on hover */
+.bn-editor [data-content-type="codeBlock"]:hover .code-block-copy-btn,
+.code-block-copy-btn:focus {
+  opacity: 1;
+}
+
+/* Light mode copy button */
+:root .code-block-copy-btn,
+.light .code-block-copy-btn {
+  background-color: rgba(175, 184, 193, 0.2);
+  color: #57606a;
+}
+
+:root .code-block-copy-btn:hover,
+.light .code-block-copy-btn:hover {
+  background-color: rgba(175, 184, 193, 0.4);
+  color: #24292f;
+}
+
+/* Dark mode copy button */
+.dark .code-block-copy-btn {
+  background-color: rgba(110, 118, 129, 0.4);
+  color: #8b949e;
+}
+
+.dark .code-block-copy-btn:hover {
+  background-color: rgba(110, 118, 129, 0.6);
+  color: #c9d1d9;
+}
+
+/* Copy button success state */
+.code-block-copy-btn.copied {
+  background-color: #238636 !important;
+  color: white !important;
+  opacity: 1;
+}
+
+/* Copy button icon */
+.code-block-copy-btn svg {
+  width: 12px;
+  height: 12px;
+}

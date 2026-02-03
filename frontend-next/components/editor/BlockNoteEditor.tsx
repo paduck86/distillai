@@ -3,11 +3,15 @@
 import { useEffect, useState, useMemo, useRef, useCallback } from "react";
 import { BlockNoteView } from "@blocknote/mantine";
 import { useCreateBlockNote, getDefaultReactSlashMenuItems, SuggestionMenuController } from "@blocknote/react";
+import { BlockNoteSchema, defaultBlockSpecs } from "@blocknote/core";
 import "@blocknote/core/fonts/inter.css";
 import "@blocknote/mantine/style.css";
 import "./block-selection.css";
-import { Sparkles, FileText, Youtube, Mic, Image as ImageIcon, Link2, Radio } from "lucide-react";
+import "./code-block.css";
+import { Sparkles, FileText, Youtube, Mic, Image as ImageIcon, Link2, Radio, List, Bookmark } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { TableOfContentsBlock } from "./blocks/TableOfContentsBlock";
+import { BookmarkBlock } from "./blocks/BookmarkBlock";
 
 import { api } from "@/lib/api";
 import { usePageStore } from "@/store/usePageStore";
@@ -86,6 +90,16 @@ const flattenBlocks = (blocks: any[], pageId: string, parentId: string | null = 
                 type = "embed";
                 properties.embedType = "image";
                 properties.embedUrl = block.props.url;
+                break;
+            case "tableOfContents":
+                type = "tableOfContents";
+                break;
+            case "bookmark":
+                type = "bookmark";
+                properties.url = block.props.url;
+                properties.title = block.props.title;
+                properties.description = block.props.description;
+                properties.image = block.props.image;
                 break;
             // Add other mappings as needed
             default:
@@ -247,6 +261,16 @@ const convertToBlockNoteBlocks = (blocks: any[]): any[] => {
                     props.url = block.properties?.embedUrl || "";
                 }
                 break;
+            case "tableOfContents":
+                type = "tableOfContents";
+                break;
+            case "bookmark":
+                type = "bookmark";
+                props.url = block.properties?.url || "";
+                props.title = block.properties?.title || "";
+                props.description = block.properties?.description || "";
+                props.image = block.properties?.image || "";
+                break;
             default:
                 type = "paragraph";
         }
@@ -315,6 +339,15 @@ const localizeDefaultItems = (items: any[]) => {
 
 type IngestionMode = 'youtube' | 'pdf' | 'audio' | 'image' | 'url' | 'record';
 
+// Custom schema - temporarily disabled for debugging
+// const schema = BlockNoteSchema.create({
+//     blockSpecs: {
+//         ...defaultBlockSpecs,
+//         tableOfContents: TableOfContentsBlock as any,
+//         bookmark: BookmarkBlock as any,
+//     },
+// });
+
 export default function BlockNoteEditorComponent({ pageId }: EditorProps) {
     const [isLoading, setIsLoading] = useState(true);
     const [activePanel, setActivePanel] = useState<IngestionMode | null>(null);
@@ -375,7 +408,7 @@ export default function BlockNoteEditorComponent({ pageId }: EditorProps) {
     const draggedBlockIdsRef = useRef<string[]>([]);
     const selectedBlockIdsRef = useRef<Set<string>>(new Set());  // Sync ref for reorder handler
 
-    // Initialize editor
+    // Initialize editor (using default schema for now)
     const editor = useCreateBlockNote();
 
     // Subscribe to TipTap transactions for drag-and-drop detection
@@ -1189,6 +1222,59 @@ export default function BlockNoteEditorComponent({ pageId }: EditorProps) {
                 return;
             }
 
+            // Handle Cmd+D (Mac) / Ctrl+D (Windows) to duplicate current block
+            if ((e.metaKey || e.ctrlKey) && e.key === 'd') {
+                // Only work inside editor
+                const editorElement = editorContainerRef.current;
+                const activeElement = document.activeElement;
+                if (!editorElement || !editorElement.contains(activeElement)) {
+                    return;
+                }
+
+                e.preventDefault();
+                e.stopPropagation();
+                e.stopImmediatePropagation();
+
+                if (editor) {
+                    try {
+                        // Get current cursor position
+                        const cursorPosition = editor.getTextCursorPosition();
+                        if (!cursorPosition || !cursorPosition.block) {
+                            return;
+                        }
+
+                        const currentBlock = cursorPosition.block;
+
+                        // Don't duplicate the title block (first heading1)
+                        const allBlocks = editor.document;
+                        if (allBlocks.length > 0 && allBlocks[0].id === currentBlock.id) {
+                            return;
+                        }
+
+                        // Create a deep copy of the block without the id (so BlockNote generates a new one)
+                        const duplicateBlock = (block: any): any => {
+                            const { id, ...blockWithoutId } = block;
+                            return {
+                                ...blockWithoutId,
+                                children: block.children?.map(duplicateBlock) || []
+                            };
+                        };
+
+                        const newBlock = duplicateBlock(currentBlock);
+
+                        // Insert the duplicated block after the current block
+                        editor.insertBlocks(
+                            [newBlock],
+                            currentBlock,
+                            "after"
+                        );
+                    } catch (error) {
+                        console.error("Failed to duplicate block:", error);
+                    }
+                }
+                return;
+            }
+
             // Handle Delete/Backspace to remove selected blocks or cross-block text selection
             if (e.key === 'Delete' || e.key === 'Backspace') {
                 const textSelection = window.getSelection();
@@ -1890,6 +1976,57 @@ export default function BlockNoteEditorComponent({ pageId }: EditorProps) {
         subtext: "오디오를 녹음하고 AI로 요약합니다.",
     }), [openPanelAtCurrentBlock]);
 
+    // Bookmark Block Slash Command
+    const insertBookmarkItem = useMemo(() => ({
+        title: "북마크",
+        onItemClick: () => {
+            const currentBlock = editor.getTextCursorPosition().block;
+            editor.insertBlocks(
+                [{ type: "bookmark" as const, props: {} } as any],
+                currentBlock,
+                "after"
+            );
+            // Remove the current block if it's empty
+            if (currentBlock.type === "paragraph" &&
+                (!currentBlock.content || (Array.isArray(currentBlock.content) && currentBlock.content.length === 0))) {
+                editor.removeBlocks([currentBlock]);
+            }
+        },
+        aliases: ["bookmark", "북마크", "link", "링크", "embed", "웹", "web", "url"],
+        group: "Embeds",
+        icon: <Bookmark className="w-4 h-4" style={{ color: "#6b7280" }} />,
+        subtext: "웹 페이지 링크를 카드 형태로 삽입합니다.",
+    }), [editor]);
+
+    // Table of Contents Slash Command Item
+    const insertTocItem = useMemo(() => ({
+        title: "목차",
+        onItemClick: () => {
+            const currentBlock = editor.getTextCursorPosition().block;
+
+            // Check if current block is empty - if so, replace it instead of inserting after
+            const isCurrentBlockEmpty = !Array.isArray(currentBlock.content) ||
+                currentBlock.content.length === 0 ||
+                !currentBlock.content.some((c: any) => c.text && c.text.trim());
+
+            const tocBlock = {
+                type: "tableOfContents" as const,
+            };
+
+            if (isCurrentBlockEmpty && currentBlock.type === "paragraph") {
+                // Replace the empty block
+                editor.updateBlock(currentBlock, tocBlock);
+            } else {
+                // Insert after
+                editor.insertBlocks([tocBlock], currentBlock, "after");
+            }
+        },
+        aliases: ["toc", "목차", "tableofcontents", "table of contents", "contents", "index"],
+        group: "Basic",
+        icon: <List className="w-4 h-4" style={{ color: "var(--foreground-secondary)" }} />,
+        subtext: "페이지 내 제목들의 목차를 생성합니다.",
+    }), [editor]);
+
     // Helper to close panel
     const closePanel = useCallback(() => {
         setActivePanel(null);
@@ -2455,6 +2592,7 @@ export default function BlockNoteEditorComponent({ pageId }: EditorProps) {
                             return filterSuggestionItems(
                                 [
                                     insertPageItem,
+                                    insertTocItem,
                                     insertMagicItem,
                                     insertRecordingItem,
                                     insertYoutubeItem,
@@ -2462,6 +2600,7 @@ export default function BlockNoteEditorComponent({ pageId }: EditorProps) {
                                     insertAudioItem,
                                     insertImageItem,
                                     insertUrlItem,
+                                    insertBookmarkItem,
                                     ...localizedItems
                                 ],
                                 query
