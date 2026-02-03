@@ -28,6 +28,15 @@
 | **Web Bookmark** | - | URL 프리뷰 카드 |
 | **Button** | - | 클릭 시 자동화 액션 실행 (구 Template Button) |
 
+### 🤖 AI Blocks
+| 블록 | 설명 |
+|------|------|
+| Ask a question | AI에게 질문 |
+| Ask about this page | 현재 페이지에 대해 질문 |
+| Make shorter | 텍스트 요약 |
+| See more | AI 옵션 더보기 |
+| AI Meeting Notes | AI 회의록 (Beta) |
+
 ### 📊 Database Views
 | 뷰 타입 | 설명 |
 |--------|------|
@@ -40,6 +49,7 @@
 | Chart | 차트 (Bar, Line, Donut) |
 | Feed | 피드 |
 | Map | 지도 (New) |
+| **Form** | 폼/설문 입력 |
 
 ### 📁 Database Property Types
 | 속성 | 설명 |
@@ -74,7 +84,9 @@
 
 ### 📐 Layout
 - 2~5 Columns
-- Toggle Headings (접을 수 있는 헤딩)
+- Toggle Heading 1 (접을 수 있는 H1)
+- Toggle Heading 2 (접을 수 있는 H2)
+- Toggle Heading 3 (접을 수 있는 H3)
 
 ---
 
@@ -93,9 +105,10 @@
 | Math/LaTeX | - | 수식 |
 
 ### 포맷팅 툴바 (텍스트 선택 시)
-- Explain (AI)
-- Ask AI
-- Comment
+- **Improve writing** (AI) - 글쓰기 개선
+- **Explain** (AI) - 설명
+- **Ask AI** - AI에게 질문
+- Comment - 댓글
 - 이모지
 - 체크 마크
 - Text (블록 타입 변경)
