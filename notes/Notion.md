@@ -25,8 +25,8 @@
 | **Simple Table** | - | DB 아닌 단순 테이블 |
 | **Table of Contents** | - | 페이지 내 목차 |
 | **Breadcrumb** | - | 페이지 경로 표시 |
-| **Bookmark** | - | URL 프리뷰 카드 |
-| **Template Button** | - | 클릭 시 블록 템플릿 생성 |
+| **Web Bookmark** | - | URL 프리뷰 카드 |
+| **Button** | - | 클릭 시 자동화 액션 실행 (구 Template Button) |
 
 ### 📊 Database Views
 | 뷰 타입 | 설명 |
@@ -373,7 +373,7 @@ Workspace Name
 1. **Simple Table** - 데이터베이스 아닌 단순 테이블
 2. **Synced Block** - 여러 페이지에 동기화되는 블록
 3. **Table of Contents** - 페이지 내 목차 자동 생성
-4. **Bookmark Block** - URL 붙여넣기 시 프리뷰 카드
+4. **Web Bookmark** - URL 붙여넣기 시 프리뷰 카드
 5. **Link Preview** - 링크 프리뷰 옵션 (dismiss/bookmark/embed)
 
 ### Phase 4: Database (간소화)
@@ -466,8 +466,8 @@ Workspace Name
 | Simple Table | DB 아닌 단순 테이블 | Phase 3 |
 | Table of Contents | 페이지 내 목차 | Phase 3 |
 | Breadcrumb | 페이지 경로 표시 | Phase 3 |
-| Bookmark Block | URL 프리뷰 카드 | Phase 3 |
-| Template Button | 클릭 시 블록 템플릿 생성 | Phase 4 |
+| Web Bookmark | URL 프리뷰 카드 | Phase 3 |
+| Button | 클릭 시 자동화 액션 실행 | Phase 4 |
 | 숫자 단축키 | `⌘+⌥+1~9` 블록 타입 생성 | Phase 2 |
 | Link Preview | 링크 붙여넣기 시 프리뷰 옵션 | Phase 3 |
 
