@@ -269,7 +269,9 @@ import { SelectionService } from '../../core/services/selection.service';
                 (dragStart)="onBlockDragStart($event)"
                 (dragEnd)="onBlockDragEnd($event)"
                 (dragover)="onBlockDragOver($event, i)"
-                (drop)="onBlockDrop($event, i)" />
+                (drop)="onBlockDrop($event, i)"
+                (increaseIndent)="onIncreaseIndent($event)"
+                (decreaseIndent)="onDecreaseIndent($event)" />
             }
 
 
@@ -799,7 +801,68 @@ export class PageComponent implements OnInit, OnDestroy, AfterViewInit {
       [newBlocks[index], newBlocks[index + 1]] = [newBlocks[index + 1], newBlocks[index]];
       this.blocks.set(newBlocks);
     }
-    // TODO: API call to reorder
+    this.scheduleAutoSave();
+  }
+
+  // ============ Indent Methods ============
+
+  /**
+   * 들여쓰기 증가 (Tab)
+   * - 리스트 타입 블록만 들여쓰기 가능 (bullet, numbered, todo)
+   * - 이전 블록의 depth보다 최대 1 더 깊게만 가능
+   * - 최대 3단계까지 (depth 0, 1, 2)
+   */
+  onIncreaseIndent(event: { id: string }) {
+    const currentBlocks = this.blocks();
+    const index = currentBlocks.findIndex(b => b.id === event.id);
+    if (index === -1) return;
+
+    const block = currentBlocks[index];
+    const currentDepth = block.depth || 0;
+
+    // 최대 깊이 제한 (3단계)
+    if (currentDepth >= 2) return;
+
+    // 첫 번째 블록은 들여쓰기 불가
+    if (index === 0) return;
+
+    // 이전 블록의 depth 확인
+    const prevBlock = currentBlocks[index - 1];
+    const prevDepth = prevBlock.depth || 0;
+
+    // 이전 블록보다 최대 1단계만 더 들여쓰기 가능
+    if (currentDepth > prevDepth) return;
+
+    const updatedBlock = { ...block, depth: currentDepth + 1 };
+    this.blocks.set([
+      ...currentBlocks.slice(0, index),
+      updatedBlock,
+      ...currentBlocks.slice(index + 1),
+    ]);
+    this.scheduleAutoSave();
+  }
+
+  /**
+   * 들여쓰기 감소 (Shift+Tab)
+   */
+  onDecreaseIndent(event: { id: string }) {
+    const currentBlocks = this.blocks();
+    const index = currentBlocks.findIndex(b => b.id === event.id);
+    if (index === -1) return;
+
+    const block = currentBlocks[index];
+    const currentDepth = block.depth || 0;
+
+    // 이미 최상위면 무시
+    if (currentDepth <= 0) return;
+
+    const updatedBlock = { ...block, depth: currentDepth - 1 };
+    this.blocks.set([
+      ...currentBlocks.slice(0, index),
+      updatedBlock,
+      ...currentBlocks.slice(index + 1),
+    ]);
+    this.scheduleAutoSave();
   }
 
   // Split block at cursor position (Enter key)

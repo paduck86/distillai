@@ -131,6 +131,7 @@ export interface Block {
   content: string;
   properties?: BlockProperties;
   children?: Block[];
+  depth?: number;  // 들여쓰기 레벨: 0 = 최상위, 1 = 1단계, 2 = 2단계 (최대 3단계)
 
   // Metadata
   createdAt?: string;

@@ -24,6 +24,8 @@ import { TableEditorComponent } from './table-editor.component';
   template: `
     <div
       class="block-wrapper group relative flex items-start gap-2 py-1 -ml-8"
+      [attr.data-depth]="block.depth || 0"
+      [style.margin-left.rem]="getIndentMargin()"
       (mouseenter)="isHovered.set(true)"
       (mouseleave)="isHovered.set(false); showMenu.set(false)">
 
@@ -734,6 +736,8 @@ export class BlockRendererComponent implements AfterViewInit, OnChanges {
   @Output() focusBlock = new EventEmitter<{ id: string; position?: 'start' | 'end' }>();
   @Output() dragStart = new EventEmitter<{ id: string; event: DragEvent }>();
   @Output() dragEnd = new EventEmitter<{ id: string; event: DragEvent }>();
+  @Output() increaseIndent = new EventEmitter<{ id: string }>();  // Tab: 들여쓰기
+  @Output() decreaseIndent = new EventEmitter<{ id: string }>();  // Shift+Tab: 내어쓰기
 
   @ViewChild('editInput') editInput?: ElementRef<HTMLInputElement | HTMLTextAreaElement>;
   @ViewChild('contentBlock') contentBlock?: ElementRef<HTMLElement>;
@@ -981,6 +985,60 @@ export class BlockRendererComponent implements AfterViewInit, OnChanges {
     const target = event.target as HTMLElement;
     const content = target.textContent || '';
     const selection = window.getSelection();
+
+    // Tab / Shift+Tab: 들여쓰기 / 내어쓰기
+    if (event.key === 'Tab') {
+      event.preventDefault();
+      if (event.shiftKey) {
+        this.decreaseIndent.emit({ id: this.block.id });
+      } else {
+        this.increaseIndent.emit({ id: this.block.id });
+      }
+      return;
+    }
+
+    // ⌘+⌥+숫자: 블록 타입 변환 (Cmd/Ctrl + Alt + 0-9)
+    if ((event.metaKey || event.ctrlKey) && event.altKey && /^[0-9]$/.test(event.key)) {
+      event.preventDefault();
+      const typeMap: Record<string, string> = {
+        '0': 'text',
+        '1': 'heading1',
+        '2': 'heading2',
+        '3': 'heading3',
+        '4': 'todo',
+        '5': 'bullet',
+        '6': 'numbered',
+        '7': 'toggle',
+        '8': 'code',
+        '9': 'quote',
+      };
+      const newType = typeMap[event.key];
+      if (newType) {
+        this.turnInto(newType);
+      }
+      return;
+    }
+
+    // ⌘+⇧+↑: 블록 위로 이동
+    if ((event.metaKey || event.ctrlKey) && event.shiftKey && event.key === 'ArrowUp') {
+      event.preventDefault();
+      this.moveUp.emit();
+      return;
+    }
+
+    // ⌘+⇧+↓: 블록 아래로 이동
+    if ((event.metaKey || event.ctrlKey) && event.shiftKey && event.key === 'ArrowDown') {
+      event.preventDefault();
+      this.moveDown.emit();
+      return;
+    }
+
+    // ⌘+D: 블록 복제
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'd') {
+      event.preventDefault();
+      this.duplicate.emit();
+      return;
+    }
 
     // Text Formatting Shortcuts (Cmd/Ctrl + Key)
     if (event.metaKey || event.ctrlKey) {
@@ -1352,5 +1410,17 @@ export class BlockRendererComponent implements AfterViewInit, OnChanges {
       id: this.block.id,
       properties: { tableColumnWidths: widths }
     });
+  }
+
+  // ============ Indent Methods ============
+
+  /**
+   * 들여쓰기 레벨에 따른 margin-left 계산
+   * 기본 -2rem (-ml-8)에 depth * 1.5rem 추가
+   */
+  getIndentMargin(): number {
+    const depth = this.block.depth || 0;
+    // 기본 margin은 -2rem, depth당 1.5rem 추가
+    return -2 + (depth * 1.5);
   }
 }

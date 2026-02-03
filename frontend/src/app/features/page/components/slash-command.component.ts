@@ -188,7 +188,7 @@ export class SlashCommandComponent implements OnInit {
   }
 
   private handleNavigation(key: string) {
-    constcommands = this.filteredCommands();
+    const commands = this.filteredCommands();
     const max = commands.length - 1;
 
     switch (key) {
