@@ -7,7 +7,8 @@ import { useEffect, useState } from "react";
 // 허용된 이메일 목록
 const ALLOWED_EMAILS = [
     "paduck86@gmail.com",
-    "xunaoo@gmail.com"
+    "xunaoo@gmail.com",
+    "jakedev6073@gmail.com"
 ];
 
 export default function AuthCallbackPage() {
