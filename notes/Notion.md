@@ -1,6 +1,7 @@
 # 📋 Notion 전체 기능 분석 및 Distillai 구현 플랜
 
 > 2024년 2월 Notion 직접 분석 결과
+> 2026년 2월 검증 완료 ✅
 
 ---
 
@@ -22,6 +23,14 @@
 | Callout | - | 강조 박스 |
 | Code | ``` | 코드 블록 |
 
+### 🤖 AI Blocks (Notion AI)
+| 블록 | 설명 |
+|------|------|
+| Ask a question | AI에게 질문하기 |
+| Ask about this page | 현재 페이지에 대해 질문 |
+| Make shorter | 텍스트 요약 |
+| AI Meeting Notes | 회의 노트 자동 생성 (Beta) |
+
 ### 📊 Database Views
 | 뷰 타입 | 설명 |
 |--------|------|
@@ -31,9 +40,10 @@
 | Calendar | 달력 |
 | List | 리스트 |
 | Gallery | 갤러리 (카드) |
-| Chart | 차트 (Bar, Line, Donut) |
+| Chart | 차트 (Vertical/Horizontal Bar, Line, Donut) |
 | Feed | 피드 |
 | Map | 지도 (New) |
+| Form | 데이터베이스 입력 양식 |
 
 ### 📁 Database Property Types
 | 속성 | 설명 |
@@ -56,8 +66,18 @@
 | Button | 버튼 |
 | ID | 고유 ID |
 | Place | 장소 |
-| Created time/by | 생성 시간/사용자 |
-| Last edited time/by | 수정 시간/사용자 |
+| Created time | 생성 시간 |
+| Created by | 생성한 사용자 |
+| Last edited time | 수정 시간 |
+| Last edited by | 수정한 사용자 |
+
+### 🔗 외부 연동 속성 (Integrations)
+| 속성 | 설명 |
+|------|------|
+| Google Drive File | 구글 드라이브 파일 연동 |
+| Figma File | Figma 파일 연동 |
+| GitHub Pull Request | GitHub PR 연동 |
+| Zendesk Ticket | Zendesk 티켓 연동 |
 
 ### 🎨 Media & Embeds
 - Image, Video, Audio
@@ -68,7 +88,9 @@
 
 ### 📐 Layout
 - 2~5 Columns
-- Toggle Headings (접을 수 있는 헤딩)
+- Toggle Heading 1 (`## >`)
+- Toggle Heading 2 (`## >`)
+- Toggle Heading 3 (`### >`)
 
 ---
 
@@ -87,19 +109,19 @@
 | Math/LaTeX | - | 수식 |
 
 ### 포맷팅 툴바 (텍스트 선택 시)
-- Explain (AI)
-- Ask AI
-- Comment
-- 이모지
-- 체크 마크
+- Improve writing (AI) - 글쓰기 개선
+- Ask AI - AI에게 질문
+- Comment - 댓글 추가
+- 😀 이모지
+- ☑️ 체크 마크
 - Text (블록 타입 변경)
 - B (Bold)
 - I (Italic)
 - U (Underline)
 - S (Strikethrough)
 - </> (Code)
-- 수식 (Math/LaTeX)
-- 링크
+- 𝑥 수식 (Math/LaTeX)
+- 🔗 링크
 - A (색상)
 - ... (더보기)
 
@@ -417,3 +439,28 @@ Workspace Name
 ---
 
 *이 문서는 Notion 웹 앱을 직접 분석하여 작성되었습니다.*
+
+---
+
+## 📝 검증 로그 (2026-02-03)
+
+### 검증 완료 항목 ✅
+1. **/ 명령어 블록 타입**: Basic Blocks, AI Blocks, Media, Database Views, Layout 모두 확인
+2. **텍스트 포맷팅 툴바**: 모든 버튼 및 기능 확인
+3. **사이드바 구조**: Workspace, Private, Shared, Notion apps, Settings 등 완벽 일치
+4. **Database Property Types**: 모든 속성 타입 확인 (외부 연동 속성 추가 발견)
+5. **Settings 구조**: Account, Workspace, Preferences 섹션 확인
+
+### 문서 업데이트 내용
+1. AI Blocks 섹션 추가 (Ask a question, AI Meeting Notes 등)
+2. Form 뷰 타입 추가
+3. 외부 연동 속성 섹션 추가 (Google Drive, Figma, GitHub, Zendesk)
+4. Toggle Heading 1/2/3 세분화
+5. 포맷팅 툴바 "Explain (AI)" → "Improve writing" 수정
+6. Created time/by, Last edited time/by 분리
+
+### 검증 방법
+- Notion 웹 앱 직접 테스트 (Chrome MCP)
+- / 명령어 메뉴 전체 스크롤 확인
+- Add property 메뉴 전체 확인
+- Settings 창 확인
